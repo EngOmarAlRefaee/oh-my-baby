@@ -1,0 +1,39 @@
+OH MY BABY — V6 FINAL ORDER FLOW / RETURNS PATCH
+
+What this patch adds
+====================
+1) Admin and Owner can operate the Delivery board from their own logged-in account.
+   They can start delivery, mark delivered, handle failed delivery, pickup returns and complete returns.
+   Delivery users are still limited to the orders assigned to them.
+
+2) Customer return after delivery
+   Delivered -> Customer requests return -> Admin/Owner approve or reject -> assign return driver
+   -> driver picks up return -> return is on the way -> returned to store.
+
+3) Failed delivery / refusal at the door
+   Out for delivery -> Delivery/Admin/Owner clicks "Failed delivery / return"
+   -> return goes directly into return transit -> returned to store.
+
+4) Rewards and commissions
+   Rewards remain counted while a return request is only being reviewed.
+   When the returned order is physically received by the store, reward progress is recalculated.
+   Unused reward coupons that are no longer earned are revoked.
+   A coupon used on the returned order is restored to available.
+   Pending commission becomes reversed. A commission already paid becomes reversal_required.
+
+5) Audit foundation
+   Every important order action is written to order_events with actor user id.
+   This will be used by the next Team/Permissions/Audit step.
+
+Install
+=======
+Copy the patch contents over the V6 website folder and Replace files.
+Then run START_TEST_WINDOWS.bat again. It runs php artisan migrate --force automatically.
+
+Quick test
+==========
+A) Normal order: Customer -> Admin accept/dispatch -> Delivery start -> Delivery delivered.
+B) Customer return: Customer /account -> Request return -> Admin /admin/orders approve -> assign driver
+   -> Delivery /delivery pickup -> returned to store.
+C) Door refusal: Delivery /delivery -> start -> Failed delivery / return -> returned to store.
+D) Admin fallback: stay logged in as Admin, open /delivery and execute delivery actions without logging in as Delivery.

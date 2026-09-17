@@ -1,0 +1,2831 @@
+@import "tailwindcss";
+
+@source "../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php";
+@source "../../storage/framework/views/*.php";
+@source "../views/**/*.blade.php";
+@source "../js/**/*.js";
+@source "../js/**/*.jsx";
+
+/* ==========================================================================
+   OH MY BABY — DESIGN SYSTEM
+   One token set drives every color, type, radius and motion decision below.
+   Nothing in the component files should invent a new value outside this file.
+   ========================================================================== */
+
+@theme {
+  /* Palette — every color has exactly one job across the whole site.
+       milk/oat  = surfaces (light/soft)
+       espresso  = ink + dark surfaces
+       aubergine = the single interactive accent (links, CTAs, focus)
+       pistachio = secondary editorial accent (rule marks, progress)
+       butter    = tertiary accent (badges, highlights only) */
+  --color-milk: #f8f5ef;
+  --color-oat: #eae1d5;
+  --color-espresso: #282321;
+  --color-aubergine: #503443;
+  --color-pistachio: #bac6a5;
+  --color-butter: #eed77d;
+
+  /* Type — Arabic display/body carries the voice, a Latin serif carries
+       the small editorial labels (eyebrows, tags) as the site's signature. */
+  --font-arabic:
+    "IBM Plex Sans Arabic", "Segoe UI", Tahoma, ui-sans-serif, system-ui,
+    sans-serif;
+  --font-serif: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+
+  /* Motion — one easing curve, three durations, used everywhere. */
+  --ease-premium: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  html {
+    background-color: var(--color-milk);
+    scroll-behavior: smooth;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-milk);
+    color: var(--color-espresso);
+    font-family: var(--font-arabic);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background-color: var(--color-pistachio);
+    color: var(--color-espresso);
+  }
+
+  a,
+  button,
+  input {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-aubergine);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+}
+
+/* ==========================================================================
+   Editorial label system — the recurring signature: hairline rule + dot +
+   tracked serif micro-label. Every section opens with this same mark, which
+   is what ties otherwise-different sections into one visual system.
+   ========================================================================== */
+
+.omb-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.omb-eyebrow-rule {
+  display: block;
+  height: 1px;
+  width: 2rem;
+  flex: none;
+  background: currentColor;
+  opacity: 0.28;
+}
+
+.omb-eyebrow-dot {
+  display: block;
+  height: 6px;
+  width: 6px;
+  flex: none;
+  border-radius: 9999px;
+}
+
+.omb-eyebrow-label {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 600;
+  font-size: 0.6875rem;
+  line-height: 1;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   Type scale — a fixed set of heading/body treatments so every section
+   reaches for the same sizes instead of inventing new tracking per element.
+   ========================================================================== */
+
+.omb-h1 {
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  line-height: 0.98;
+  font-size: 2.75rem;
+}
+@media (min-width: 640px) {
+  .omb-h1 {
+    font-size: 4.25rem;
+  }
+}
+@media (min-width: 1024px) {
+  .omb-h1 {
+    font-size: 5.25rem;
+  }
+}
+
+.omb-h2 {
+  margin-top: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+  font-size: 2.25rem;
+}
+@media (min-width: 640px) {
+  .omb-h2 {
+    font-size: 2.75rem;
+  }
+}
+
+.omb-h3 {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.omb-lead {
+  margin-top: 0.75rem;
+  max-width: 32rem;
+  font-size: 0.9375rem;
+  line-height: 1.8;
+  color: rgb(40 35 33 / 0.55);
+}
+
+.omb-section-head {
+  margin-bottom: 2.75rem;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 2rem;
+}
+
+/* ==========================================================================
+   Links — two deliberate treatments: a growing underline for primary nav
+   (playful reveal), a static border for editorial "view all" links (quieter,
+   body-copy register). Both share the same timing so they feel related.
+   ========================================================================== */
+
+.omb-underline {
+  position: relative;
+}
+.omb-underline::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: -6px;
+  height: 1px;
+  width: 0%;
+  background: var(--color-aubergine);
+  transition: width 350ms var(--ease-premium);
+}
+.omb-underline:hover::after,
+.omb-underline:focus-visible::after {
+  width: 100%;
+}
+
+.omb-link {
+  position: relative;
+  display: inline-flex;
+  padding-bottom: 0.3rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--color-aubergine);
+  border-bottom: 1px solid rgb(80 52 67 / 0.3);
+  transition: border-color 300ms var(--ease-premium);
+}
+.omb-link:hover,
+.omb-link:focus-visible {
+  border-color: var(--color-aubergine);
+  transform: translateY(-1px);
+}
+
+/* ==========================================================================
+   Buttons — one primary, one secondary. Every CTA on the site uses these
+   two classes instead of hand-rolled utility strings, so radius, padding,
+   weight and hover behavior can never drift between sections.
+   ========================================================================== */
+
+.omb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  min-height: 3rem;
+  padding: 0 1.75rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  white-space: nowrap;
+  transition:
+    background-color 300ms var(--ease-premium),
+    color 300ms var(--ease-premium),
+    border-color 300ms var(--ease-premium),
+    transform 300ms var(--ease-premium),
+    box-shadow 300ms var(--ease-premium);
+}
+.omb-btn:active {
+  transform: scale(0.98);
+}
+.omb-btn:focus-visible {
+  outline: 2px solid var(--color-pistachio);
+  outline-offset: 3px;
+}
+
+.omb-btn-primary {
+  background: var(--color-aubergine);
+  color: var(--color-milk);
+  box-shadow: 0 1px 2px rgb(40 35 33 / 0.1);
+}
+.omb-btn-primary:hover {
+  background: var(--color-espresso);
+  transform: translateY(-2px);
+  box-shadow: 0 18px 30px -8px rgb(40 35 33 / 0.35);
+}
+
+.omb-btn-secondary {
+  background: transparent;
+  color: var(--color-espresso);
+  border: 1px solid rgb(80 52 67 / 0.18);
+}
+.omb-btn-secondary:hover {
+  border-color: var(--color-aubergine);
+  background: var(--color-oat);
+}
+
+.omb-btn-on-dark {
+  border-color: rgb(248 245 239 / 0.3);
+  color: var(--color-milk);
+}
+.omb-btn-on-dark:hover {
+  background: rgb(248 245 239 / 0.12);
+  border-color: rgb(248 245 239 / 0.6);
+}
+
+.omb-btn-icon {
+  display: inline-flex;
+  transition: transform 300ms var(--ease-premium);
+}
+.omb-btn:hover .omb-btn-icon {
+  transform: translateX(-4px);
+}
+
+/* ==========================================================================
+   Media — one overlay recipe and one hover-zoom recipe for every photograph
+   on the site, so contrast and motion never vary section to section.
+   ========================================================================== */
+
+.omb-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgb(40 35 33 / 0.72) 0%,
+    rgb(40 35 33 / 0.18) 55%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+.omb-media-zoom {
+  transition: transform 700ms var(--ease-premium);
+}
+.group:hover .omb-media-zoom {
+  transform: scale(1.06);
+}
+
+.omb-card-lift {
+  transition:
+    transform 500ms var(--ease-premium),
+    box-shadow 500ms var(--ease-premium);
+}
+.group:hover .omb-card-lift {
+  transform: translateY(-6px);
+  box-shadow: 0 24px 40px -18px rgb(40 35 33 / 0.28);
+}
+
+/* ==========================================================================
+   Header refinement — compact brand grid, tactile icon hover and transient UI.
+   Existing mega menus remain intact; these rules only refine presentation.
+   ========================================================================== */
+
+.omb-wordmark {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-espresso);
+  font-family: var(--font-serif);
+  font-size: clamp(1.05rem, 1.45vw, 1.3rem);
+  font-style: italic;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  line-height: 1;
+  white-space: nowrap;
+}
+.omb-wordmark::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -10px;
+  height: 1px;
+  width: 0;
+  background: var(--color-aubergine);
+  transform: translateX(-50%);
+  transition: width 450ms var(--ease-premium);
+}
+.omb-wordmark:hover::after,
+.omb-wordmark:focus-visible::after {
+  width: 54%;
+}
+
+.omb-header-icon {
+  isolation: isolate;
+  border-radius: 9999px;
+  color: var(--color-espresso);
+  transition:
+    color 300ms var(--ease-premium),
+    transform 350ms var(--ease-premium);
+}
+.omb-header-icon::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  z-index: 0;
+  border-radius: inherit;
+  background: var(--color-oat);
+  opacity: 0;
+  transform: scale(0.56);
+  transition:
+    opacity 300ms var(--ease-premium),
+    transform 450ms var(--ease-premium);
+}
+.omb-header-icon:hover,
+.omb-header-icon:focus-visible {
+  color: var(--color-aubergine);
+  transform: translateY(-2px);
+}
+.omb-header-icon:hover::before,
+.omb-header-icon:focus-visible::before {
+  opacity: 0.9;
+  transform: scale(1);
+}
+
+/* Header category hover — visible but restrained. */
+.omb-nav-link {
+  position: relative;
+  color: var(--color-espresso);
+  transition:
+    color 300ms var(--ease-premium),
+    transform 300ms var(--ease-premium);
+}
+.omb-nav-link::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  width: 100%;
+  height: 2px;
+  background: var(--color-aubergine);
+  transform: translateX(-50%) scaleX(0);
+  transform-origin: center;
+  transition: transform 360ms var(--ease-premium);
+}
+.omb-nav-link:hover,
+.omb-nav-link:focus-visible {
+  color: var(--color-aubergine);
+  transform: translateY(-1px);
+}
+.omb-nav-link:hover::after,
+.omb-nav-link:focus-visible::after {
+  transform: translateX(-50%) scaleX(1);
+}
+
+@keyframes omb-search-panel-in {
+  from {
+    opacity: 0;
+    clip-path: inset(0 0 100% 0);
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0);
+    transform: translateY(0);
+  }
+}
+.omb-search-panel {
+  position: relative;
+  z-index: 2;
+  animation: omb-search-panel-in 600ms var(--ease-premium) both;
+}
+
+@keyframes omb-offer-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.omb-offer-nudge {
+  animation: omb-offer-in 700ms var(--ease-premium) both;
+}
+
+/* ==========================================================================
+   Hero slideshow — full-bleed editorial image, low-positioned copy and a
+   clip/scale transition. Hover intentionally pauses the carousel and adds a
+   nearly imperceptible photographic push instead of a generic card zoom.
+   ========================================================================== */
+
+.omb-hero-stage {
+  height: clamp(540px, 61vh, 660px);
+  min-height: 540px;
+  background: var(--color-oat);
+}
+
+.omb-hero-slide {
+  opacity: 0;
+  clip-path: inset(0 2.25% 0 0);
+  pointer-events: none;
+  transition:
+    opacity 850ms var(--ease-premium),
+    clip-path 1050ms var(--ease-premium);
+}
+.omb-hero-slide.is-active {
+  z-index: 2;
+  opacity: 1;
+  clip-path: inset(0);
+}
+.omb-hero-media {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--omb-hero-bg, var(--color-oat));
+}
+.omb-hero-media.is-portrait {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.omb-hero-media.is-portrait::before {
+  content: "";
+  position: absolute;
+  inset: -6%;
+  background-image: inherit;
+  opacity: 0;
+}
+.omb-hero-slide-image {
+  display: block;
+  transition: transform 1400ms var(--ease-premium);
+  will-change: transform;
+}
+.omb-hero-media.is-landscape .omb-hero-slide-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: var(--omb-hero-pos, center);
+}
+.omb-hero-media.is-portrait .omb-hero-slide-image {
+  position: absolute;
+  left: clamp(4%, 7vw, 10%);
+  top: 50%;
+  width: auto;
+  height: 94%;
+  max-width: 62%;
+  object-fit: contain;
+  object-position: center;
+  transform: translateY(-50%);
+}
+[dir="ltr"] .omb-hero-media.is-portrait .omb-hero-slide-image {
+  left: auto;
+  right: clamp(4%, 7vw, 10%);
+}
+.omb-hero-stage:hover .omb-hero-media.is-landscape .omb-hero-slide-image {
+  transform: scale(1.006);
+}
+.omb-hero-stage:hover .omb-hero-media.is-portrait .omb-hero-slide-image {
+  transform: translateY(-50%) scale(1.006);
+}
+
+.omb-hero-scrim {
+  transition: background 700ms var(--ease-premium);
+}
+[dir="rtl"] .omb-hero-scrim-light {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 56%,
+    rgb(248 245 239 / 0.16) 70%,
+    rgb(248 245 239 / 0.76) 100%
+  );
+}
+[dir="ltr"] .omb-hero-scrim-light {
+  background: linear-gradient(
+    270deg,
+    transparent 0%,
+    transparent 56%,
+    rgb(248 245 239 / 0.16) 70%,
+    rgb(248 245 239 / 0.76) 100%
+  );
+}
+[dir="rtl"] .omb-hero-scrim-dark {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 56%,
+    rgb(20 17 16 / 0.12) 72%,
+    rgb(20 17 16 / 0.52) 100%
+  );
+}
+[dir="ltr"] .omb-hero-scrim-dark {
+  background: linear-gradient(
+    270deg,
+    transparent 0%,
+    transparent 56%,
+    rgb(20 17 16 / 0.12) 72%,
+    rgb(20 17 16 / 0.52) 100%
+  );
+}
+
+@keyframes omb-hero-title-in {
+  from {
+    opacity: 0;
+    transform: translateY(108%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes omb-hero-body-in {
+  from {
+    opacity: 0;
+    transform: translateY(80%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes omb-hero-cta-in {
+  from {
+    opacity: 0;
+    transform: translateY(70%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.omb-hero-title {
+  animation: omb-hero-title-in 760ms 120ms var(--ease-premium) both;
+}
+.omb-hero-body {
+  animation: omb-hero-body-in 700ms 220ms var(--ease-premium) both;
+}
+.omb-hero-cta {
+  animation: omb-hero-cta-in 680ms 300ms var(--ease-premium) both;
+}
+
+@keyframes omb-hero-progress {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+.omb-hero-progress {
+  animation: omb-hero-progress 6s linear both;
+}
+
+@media (max-width: 639px) {
+  .omb-hero-stage {
+    height: 68svh;
+    min-height: 520px;
+    max-height: 680px;
+  }
+  .omb-hero-media.is-portrait .omb-hero-slide-image {
+    left: 50%;
+    right: auto;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    object-fit: cover;
+    object-position: center 42%;
+    transform: translate(-50%, -50%);
+  }
+  [dir="ltr"] .omb-hero-media.is-portrait .omb-hero-slide-image {
+    left: 50%;
+    right: auto;
+  }
+  .omb-hero-stage:hover .omb-hero-media.is-portrait .omb-hero-slide-image {
+    transform: translate(-50%, -50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .omb-media-zoom,
+  .omb-card-lift,
+  .omb-btn,
+  .omb-btn-icon,
+  .omb-underline::after,
+  .omb-link,
+  .omb-header-icon,
+  .omb-header-icon::before,
+  .omb-wordmark::after,
+  .omb-nav-link,
+  .omb-nav-link::after,
+  .omb-hero-scrim,
+  .omb-hero-slide,
+  .omb-hero-slide-image {
+    transition: none;
+  }
+  .omb-search-panel,
+  .omb-offer-nudge {
+    animation: none;
+  }
+}
+/* ===== OH MY BABY — HERO FIX ===== */
+
+/* روابط الهيدر */
+.omb-nav-link {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+}
+
+/* الهيرو نفسه */
+.omb-hero-stage {
+  height: clamp(680px, 74vh, 780px) !important;
+  min-height: 680px !important;
+}
+
+/* نلغي أي فرق بين portrait و landscape */
+.omb-hero-media,
+.omb-hero-media.is-portrait,
+.omb-hero-media.is-landscape {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  overflow: hidden !important;
+}
+
+/* الصورة تصير فعلياً Full Hero */
+.omb-hero-slide-image {
+  position: absolute !important;
+  inset: 0 !important;
+
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+
+  object-fit: cover !important;
+  object-position: var(--omb-hero-pos, center center) !important;
+
+  transform: scale(1.01) !important;
+}
+
+/* النص */
+.omb-hero-copy {
+  bottom: 34px !important;
+}
+
+.omb-hero-title {
+  font-size: clamp(48px, 4vw, 68px) !important;
+  font-weight: 800 !important;
+  line-height: 1.05 !important;
+  letter-spacing: -0.035em !important;
+}
+
+.omb-hero-body {
+  font-size: 19px !important;
+  font-weight: 400 !important;
+  line-height: 1.7 !important;
+}
+
+.omb-hero-cta {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .omb-hero-stage {
+    height: 70svh !important;
+    min-height: 560px !important;
+  }
+
+  .omb-hero-title {
+    font-size: 40px !important;
+  }
+
+  .omb-hero-body {
+    font-size: 17px !important;
+  }
+}
+
+/* ==========================================================================
+   SEPT 01 REFINEMENT — Header stays complete through the hero, then becomes
+   a compact sticky utility bar. The promo/nav are not removed; they smoothly
+   return as soon as the hero re-enters the viewport.
+   ========================================================================== */
+
+.omb-site-header,
+.omb-header-promo,
+.omb-header-nav,
+.omb-header-brand-row,
+.omb-brand-wordmark-text,
+.omb-brand-mark {
+  transition:
+    height 480ms var(--ease-premium),
+    max-height 480ms var(--ease-premium),
+    opacity 360ms var(--ease-premium),
+    transform 480ms var(--ease-premium),
+    padding 480ms var(--ease-premium);
+}
+
+.omb-header-promo {
+  max-height: 42px;
+  overflow: hidden;
+  transform-origin: top;
+}
+
+.omb-header-nav {
+  max-height: 56px;
+  overflow: visible;
+  transform-origin: top;
+}
+
+.omb-site-header.is-compact .omb-header-promo {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
+}
+
+.omb-site-header.is-compact .omb-header-nav {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-8px);
+  overflow: hidden;
+  pointer-events: none;
+  border-bottom-color: transparent;
+}
+
+.omb-site-header.is-compact .omb-header-brand-row {
+  height: 64px !important;
+}
+
+.omb-site-header.is-compact .omb-brand-wordmark-text {
+  transform: scale(0.9);
+}
+
+.omb-site-header.is-compact .omb-brand-mark {
+  height: 44px !important;
+  transform: translateY(0) scale(0.92);
+}
+
+@media (max-width: 639px) {
+  .omb-site-header.is-compact .omb-header-brand-row {
+    height: 58px !important;
+  }
+
+  .omb-site-header.is-compact .omb-brand-mark {
+    height: 40px !important;
+  }
+
+  .omb-site-header.is-compact .omb-brand-wordmark-text {
+    transform: scale(0.84);
+  }
+}
+
+/* ==========================================================================
+   Category editorial mosaic — builds on the existing Reveal + image zoom.
+   The new interaction adds a soft light sweep, copy lift and expanding CTA
+   without replacing any of the motion Claude already put in the project.
+   ========================================================================== */
+
+.omb-category-card {
+  isolation: isolate;
+  box-shadow: inset 0 0 0 1px rgb(248 245 239 / 0.05);
+  transition:
+    transform 520ms var(--ease-premium),
+    box-shadow 520ms var(--ease-premium);
+}
+
+.omb-category-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border: 1px solid rgb(248 245 239 / 0);
+  pointer-events: none;
+  transition: border-color 420ms var(--ease-premium);
+}
+
+.omb-category-glow {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    radial-gradient(
+      circle at 82% 18%,
+      rgb(248 245 239 / 0.24),
+      transparent 34%
+    ),
+    linear-gradient(to top, rgb(40 35 33 / 0.16), transparent 48%);
+  transform: translateY(6%);
+  transition:
+    opacity 600ms var(--ease-premium),
+    transform 700ms var(--ease-premium);
+}
+
+.omb-category-content {
+  z-index: 3;
+}
+
+.omb-category-copy,
+.omb-category-title,
+.omb-category-subtitle,
+.omb-category-index {
+  transition:
+    transform 500ms var(--ease-premium),
+    opacity 420ms var(--ease-premium);
+}
+
+.omb-category-cta {
+  display: inline-flex;
+  height: 42px;
+  width: 42px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  overflow: hidden;
+  border: 1px solid rgb(248 245 239 / 0.48);
+  border-radius: 9999px;
+  background: rgb(248 245 239 / 0.08);
+  color: #fff;
+  backdrop-filter: blur(5px);
+  transition:
+    width 520ms var(--ease-premium),
+    background-color 360ms var(--ease-premium),
+    border-color 360ms var(--ease-premium),
+    transform 420ms var(--ease-premium);
+}
+
+.omb-category-cta-label {
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 700;
+  transition:
+    max-width 520ms var(--ease-premium),
+    opacity 300ms var(--ease-premium);
+}
+
+.omb-category-cta-arrow {
+  display: inline-flex;
+  font-size: 18px;
+  line-height: 1;
+  transition: transform 420ms var(--ease-premium);
+}
+
+.omb-category-card:hover {
+  box-shadow: 0 26px 55px -28px rgb(40 35 33 / 0.55);
+}
+
+.omb-category-card:hover::after {
+  border-color: rgb(248 245 239 / 0.2);
+}
+
+.omb-category-card:hover .omb-category-glow {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.omb-category-card:hover .omb-category-copy {
+  transform: translateY(-4px);
+}
+
+.omb-category-card:hover .omb-category-title {
+  transform: translateY(-2px);
+}
+
+.omb-category-card:hover .omb-category-subtitle {
+  opacity: 1;
+}
+
+.omb-category-card:hover .omb-category-index {
+  opacity: 0.92;
+  transform: translateY(2px);
+}
+
+.omb-category-card:hover .omb-category-cta {
+  width: 96px;
+  border-color: rgb(248 245 239 / 0.7);
+  background: rgb(248 245 239 / 0.14);
+  transform: translateY(-1px);
+}
+
+.omb-category-card:hover .omb-category-cta-label {
+  max-width: 56px;
+  opacity: 1;
+}
+
+[dir="rtl"] .omb-category-card:hover .omb-category-cta-arrow {
+  transform: translateX(-2px);
+}
+
+[dir="ltr"] .omb-category-card:hover .omb-category-cta-arrow {
+  transform: translateX(2px);
+}
+
+@media (hover: none) {
+  .omb-category-card:hover {
+    box-shadow: none;
+  }
+
+  .omb-category-cta {
+    width: 42px;
+  }
+
+  .omb-category-cta-label {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .omb-site-header,
+  .omb-header-promo,
+  .omb-header-nav,
+  .omb-header-brand-row,
+  .omb-brand-wordmark-text,
+  .omb-brand-mark,
+  .omb-category-card,
+  .omb-category-card::after,
+  .omb-category-glow,
+  .omb-category-copy,
+  .omb-category-title,
+  .omb-category-subtitle,
+  .omb-category-index,
+  .omb-category-cta,
+  .omb-category-cta-label,
+  .omb-category-cta-arrow {
+    transition: none !important;
+  }
+}
+/* ===== PROMO MARQUEE - FINAL ===== */
+
+.omb-promo-bar {
+  position: relative !important;
+  width: 100% !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  overflow: hidden !important;
+
+  background: #000 !important;
+  color: #fff !important;
+
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+/* Pause the ticker on hover/focus so the sign-in CTA inside it is
+   actually clickable rather than a moving target. */
+.omb-promo-bar:hover .omb-promo-track,
+.omb-promo-bar:focus-within .omb-promo-track {
+  animation-play-state: paused;
+}
+
+.omb-site-header.is-compact .omb-promo-bar {
+  height: 44px !important;
+  min-height: 44px !important;
+  max-height: 44px !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+.omb-promo-track {
+  display: flex !important;
+  width: max-content !important;
+  height: 44px !important;
+
+  animation: ombPromoFinalAr 90s linear infinite !important;
+
+  will-change: transform;
+}
+[dir="ltr"] .omb-promo-track.is-en {
+  animation: ombPromoFinalEn 90s linear infinite !important;
+}
+.omb-promo-group i {
+  flex: none !important;
+
+  color: #eed77d !important;
+
+  font-size: 14px !important;
+  font-style: normal !important;
+
+  opacity: 0.8;
+}
+
+.omb-promo-cta {
+  color: #eed77d !important;
+  text-decoration: underline !important;
+  text-underline-offset: 3px !important;
+  font-weight: 800 !important;
+  transition: opacity 300ms var(--ease-premium);
+}
+.omb-promo-cta:hover,
+.omb-promo-cta:focus-visible {
+  opacity: 0.75;
+}
+
+@keyframes ombPromoFinalAr {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(50%);
+  }
+}
+
+@keyframes ombPromoFinalEn {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+.omb-promo-group {
+  display: flex !important;
+  flex: none !important;
+  align-items: center !important;
+  height: 44px !important;
+  white-space: nowrap !important;
+}
+
+.omb-promo-group span {
+  flex: 0 0 auto !important;
+
+  /* هاي هي المسافة بين كل جملة والتانية */
+  min-width: 78vw !important;
+
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  box-sizing: border-box !important;
+  padding-inline: 5vw !important;
+
+  /* Direction is inherited from <html dir> (set per-locale in app.jsx) —
+     it must not be pinned to rtl here, or English copy renders backwards. */
+  text-align: center !important;
+  white-space: nowrap !important;
+
+  color: #fff !important;
+  font-size: 17px !important;
+  font-weight: 700 !important;
+  line-height: 44px !important;
+}
+.omb-site-header .omb-promo-bar .omb-promo-track .omb-promo-group span {
+  font-size: 25px !important;
+  font-weight: 800 !important;
+  line-height: 44px !important;
+}
+/* ===== CATEGORIES EXPAND — SAFE VERSION ===== */
+
+@media (min-width: 1024px) {
+  .omb-categories-expand {
+    display: flex !important;
+    width: 100%;
+    height: 620px;
+    gap: 12px;
+    overflow: hidden;
+  }
+
+  .omb-categories-expand > .omb-category-slot {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 620px;
+
+    transition:
+      flex 700ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 500ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .omb-category-slot > * {
+    height: 100%;
+  }
+
+  .omb-categories-expand:hover > .omb-category-slot {
+    flex: 0.8 1 0;
+  }
+
+  .omb-categories-expand > .omb-category-slot:hover {
+    flex: 2.5 1 0;
+  }
+
+  .omb-categories-expand:hover
+    > .omb-category-slot:not(:hover)
+    .omb-category-card {
+    opacity: 0.72;
+  }
+
+  .omb-category-card {
+    transition:
+      opacity 500ms ease,
+      transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .omb-category-slot:hover .omb-category-card {
+    transform: scale(1.015);
+  }
+}
+@media (max-width: 1023px) {
+  .omb-category-card {
+    transition: transform 220ms ease;
+  }
+
+  .omb-category-card:active {
+    transform: scale(0.975);
+  }
+}
+/* =========================================================
+   BEST SELLERS — FCTRY STYLE FINAL
+   ========================================================= */
+
+.omb-best-marquee {
+  width: 100%;
+  overflow: hidden;
+  padding: 0;
+}
+
+.omb-best-marquee-image {
+  position: relative;
+  width: 100%;
+
+  aspect-ratio: 3 / 4;
+
+  overflow: hidden;
+  background: #eae1d5;
+}
+
+.omb-best-marquee-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+
+  object-fit: cover;
+
+  transition: transform 650ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.omb-best-marquee-card:hover .omb-best-marquee-image img {
+  transform: scale(1.035);
+}
+
+/* بدون أسعار */
+.omb-best-marquee-price,
+.omb-best-marquee-card .price {
+  display: none !important;
+}
+
+/* ===== BEST SELLERS MARQUEE ===== */
+
+.omb-best-marquee {
+  direction: ltr !important;
+}
+
+/* Pause the loop on hover/focus so a card can actually be read/clicked
+   instead of sliding out from under the cursor. */
+.omb-best-marquee:hover .omb-best-marquee-track,
+.omb-best-marquee:focus-within .omb-best-marquee-track {
+  animation-play-state: paused;
+}
+
+.omb-best-marquee-track {
+  direction: ltr !important;
+
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  width: max-content !important;
+  gap: 0 !important;
+
+  animation: ombBestLoopFixed 20s linear infinite !important;
+}
+
+.omb-best-marquee-card {
+  /* Card geometry stays LTR (matches the track's fixed scroll physics);
+     only the text inside should flip with the page's language. */
+  flex: 0 0 auto !important;
+  width: 20vw !important;
+  min-width: 260px !important;
+  max-width: 370px !important;
+
+  margin-right: 18px !important;
+}
+
+.omb-best-marquee-copy {
+  /* Was hardcoded `direction: rtl; text-align: right` regardless of
+     locale, which force-right-aligned English copy too. `text-align:
+     start` resolves correctly for both languages via inherited <html dir>. */
+  text-align: start !important;
+}
+
+@keyframes ombBestLoopFixed {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@media (max-width: 639px) {
+  .omb-best-marquee-card {
+    width: 70vw !important;
+    min-width: 70vw !important;
+    max-width: none !important;
+    margin-right: 12px !important;
+  }
+
+  .omb-best-marquee-track {
+    animation-duration: 28s !important;
+  }
+}
+/* ==========================================================================
+   SITE-WIDE SCROLL MOTION — one lightweight editorial system
+   ========================================================================== */
+.omb-scroll-motion {
+  position: relative;
+}
+
+.omb-scroll-motion [data-scroll-motion-prepared="true"] {
+  opacity: 0;
+  transform: translate3d(0, 20px, 0);
+  transition:
+    opacity 620ms var(--ease-premium) var(--omb-motion-delay, 0ms),
+    transform 760ms var(--ease-premium) var(--omb-motion-delay, 0ms);
+  will-change: opacity, transform;
+}
+.omb-scroll-motion [data-motion="media"][data-scroll-motion-prepared="true"] {
+  transform: translate3d(-34px, 10px, 0);
+}
+html[dir="rtl"]
+  .omb-scroll-motion
+  [data-motion="media"][data-scroll-motion-prepared="true"] {
+  transform: translate3d(34px, 10px, 0);
+}
+.omb-scroll-motion [data-motion="copy"][data-scroll-motion-prepared="true"] {
+  transform: translate3d(34px, 10px, 0);
+}
+html[dir="rtl"]
+  .omb-scroll-motion
+  [data-motion="copy"][data-scroll-motion-prepared="true"] {
+  transform: translate3d(-34px, 10px, 0);
+}
+.omb-scroll-motion.is-visible [data-scroll-motion-prepared="true"] {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  will-change: auto;
+}
+@media (max-width: 767px) {
+  .omb-scroll-motion [data-motion="media"][data-scroll-motion-prepared="true"],
+  .omb-scroll-motion [data-motion="copy"][data-scroll-motion-prepared="true"] {
+    transform: translate3d(0, 18px, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .omb-scroll-motion [data-scroll-motion-prepared="true"] {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+    will-change: auto !important;
+  }
+}
+
+/* ==========================================================================
+   LIGHT / DARK THEME
+   User choice is stored by App. Semantic utility colors are remapped here
+   while existing dark editorial surfaces (bg-espresso) remain dark.
+   ========================================================================== */
+:root {
+  color-scheme: light;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --color-milk: #171514;
+  --color-oat: #26211f;
+  --color-espresso: #f5f0e8;
+  --color-aubergine: #d3b7c5;
+  --color-pistachio: #b8c9a0;
+  --color-butter: #eed77d;
+}
+
+html[data-theme="dark"] body {
+  background-color: #171514;
+  color: #f5f0e8;
+}
+
+html[data-theme="dark"] .bg-espresso {
+  background-color: #201c1a !important;
+}
+
+html[data-theme="dark"] .text-milk {
+  color: #f8f5ef !important;
+}
+
+html[data-theme="dark"] .bg-black {
+  background-color: #090807 !important;
+}
+
+html[data-theme="dark"] .omb-promo-bar {
+  background: #000 !important;
+  color: #fff !important;
+}
+
+html[data-theme="dark"] .omb-header-brand,
+html[data-theme="dark"] .omb-header-nav,
+html[data-theme="dark"] .omb-search-panel,
+html[data-theme="dark"] .omb-offer-nudge {
+  background-color: #171514 !important;
+}
+
+html[data-theme="dark"] .omb-theme-toggle {
+  border-color: rgb(245 240 232 / 0.24);
+  background: #2a2421;
+}
+
+.omb-theme-toggle {
+  position: relative;
+  display: inline-flex;
+  width: 50px;
+  height: 28px;
+  flex: none;
+  align-items: center;
+  padding: 3px;
+  border: 1px solid rgb(80 52 67 / 0.2);
+  border-radius: 9999px;
+  background: var(--color-oat);
+  transition:
+    background-color 300ms var(--ease-premium),
+    border-color 300ms var(--ease-premium);
+}
+
+.omb-theme-toggle-knob {
+  display: flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: var(--color-milk);
+  color: var(--color-aubergine);
+  font-size: 11px;
+  line-height: 1;
+  box-shadow: 0 2px 7px rgb(40 35 33 / 0.16);
+  transform: translateX(0);
+  transition:
+    transform 320ms var(--ease-premium),
+    background-color 300ms var(--ease-premium),
+    color 300ms var(--ease-premium);
+}
+
+html[dir="rtl"] .omb-theme-toggle-knob {
+  transform: translateX(22px);
+}
+
+html[dir="rtl"] .omb-theme-toggle[aria-pressed="true"] .omb-theme-toggle-knob {
+  transform: translateX(0);
+}
+
+html[dir="ltr"] .omb-theme-toggle[aria-pressed="true"] .omb-theme-toggle-knob {
+  transform: translateX(22px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .omb-theme-toggle,
+  .omb-theme-toggle-knob {
+    transition: none;
+  }
+}
+
+/* =====================================================================
+   FINAL POLISH — safe overrides
+   ===================================================================== */
+
+/* Fixed-header anchor alignment: one source of truth for all homepage links.
+   Desktop = promo 44 + brand 88 + nav 54. Tablet/mobile nav is hidden. */
+:root {
+  --omb-header-offset: 186px;
+}
+html {
+  scroll-padding-top: var(--omb-header-offset);
+}
+section[id] {
+  scroll-margin-top: var(--omb-header-offset);
+}
+@media (max-width: 1023px) {
+  :root {
+    --omb-header-offset: 132px;
+  } /* promo 44 + brand 88 */
+}
+@media (max-width: 639px) {
+  :root {
+    --omb-header-offset: 122px;
+  } /* promo 44 + brand 78 */
+}
+
+/* Theme toggle: keep the knob physically inside the track in both RTL/LTR. */
+.omb-theme-toggle {
+  overflow: hidden;
+  box-sizing: border-box;
+  direction: ltr;
+}
+.omb-theme-toggle-knob {
+  transform: translateX(0) !important;
+  transition:
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 220ms ease,
+    color 220ms ease;
+}
+.omb-theme-toggle[aria-pressed="true"] .omb-theme-toggle-knob {
+  transform: translateX(22px) !important;
+}
+
+/* Legacy reveal wrappers remain compatibility-only; ScrollMotion owns section motion. */
+.omb-reveal,
+.omb-reveal.is-visible,
+.omb-reveal-clip,
+.omb-reveal-clip.is-visible {
+  opacity: 1 !important;
+  transform: none !important;
+  clip-path: none !important;
+  transition: none !important;
+}
+
+/* Deep-black dark mode with a tiny CSS-only drifting star field. */
+.omb-dark-stars {
+  display: none;
+  pointer-events: none;
+}
+html[data-theme="dark"] .omb-dark-stars {
+  display: block;
+  position: fixed;
+  inset: -70px;
+  z-index: 0;
+  opacity: 0.22;
+  background-image:
+    radial-gradient(
+      circle,
+      rgba(255, 255, 255, 0.82) 0 0.65px,
+      transparent 0.8px
+    ),
+    radial-gradient(
+      circle,
+      rgba(255, 255, 255, 0.56) 0 0.55px,
+      transparent 0.72px
+    ),
+    radial-gradient(
+      circle,
+      rgba(255, 255, 255, 0.42) 0 0.45px,
+      transparent 0.62px
+    );
+  background-size:
+    137px 149px,
+    211px 193px,
+    307px 283px;
+  background-position:
+    17px 23px,
+    79px 41px,
+    131px 97px;
+  transform: translate3d(0, 0, 0);
+  animation: omb-stars-drift 46s linear infinite;
+}
+@keyframes omb-stars-drift {
+  to {
+    transform: translate3d(-54px, 34px, 0);
+  }
+}
+html[data-theme="dark"] body,
+html[data-theme="dark"] #root {
+  background: #050505 !important;
+}
+html[data-theme="dark"] #root > .min-h-screen {
+  background: rgba(5, 5, 5, 0.88) !important;
+  position: relative;
+  isolation: isolate;
+}
+html[data-theme="dark"] #root > .min-h-screen > :not(.omb-dark-stars) {
+  position: relative;
+  z-index: 1;
+}
+html[data-theme="dark"] .omb-header-brand,
+html[data-theme="dark"] .omb-header-nav,
+html[data-theme="dark"] .omb-search-panel,
+html[data-theme="dark"] .omb-offer-nudge {
+  background-color: rgba(9, 9, 9, 0.97) !important;
+}
+html[data-theme="dark"] .bg-milk {
+  background-color: rgba(8, 8, 8, 0.93) !important;
+}
+html[data-theme="dark"] .bg-oat {
+  background-color: rgba(19, 16, 15, 0.94) !important;
+}
+html[data-theme="dark"] .bg-oat\/20 {
+  background-color: rgba(24, 20, 18, 0.72) !important;
+}
+html[data-theme="dark"] .bg-oat\/25 {
+  background-color: rgba(28, 24, 22, 0.76) !important;
+}
+html[data-theme="dark"] .bg-oat\/30 {
+  background-color: rgba(25, 21, 19, 0.8) !important;
+}
+html[data-theme="dark"] .bg-oat\/40 {
+  background-color: rgba(28, 24, 22, 0.84) !important;
+}
+html[data-theme="dark"] .border-espresso\/10,
+html[data-theme="dark"] .border-espresso\/12,
+html[data-theme="dark"] .border-espresso\/15 {
+  border-color: rgba(245, 240, 232, 0.12) !important;
+}
+html[data-theme="dark"] .text-espresso\/55,
+html[data-theme="dark"] .text-espresso\/60,
+html[data-theme="dark"] .text-espresso\/65,
+html[data-theme="dark"] .text-espresso\/70,
+html[data-theme="dark"] .text-espresso\/72,
+html[data-theme="dark"] .text-espresso\/75,
+html[data-theme="dark"] .text-espresso\/80 {
+  color: rgba(245, 240, 232, 0.7) !important;
+}
+
+/* Scope dropdown protection to the actual mega menu instead of every absolute header div. */
+.omb-mega-menu {
+  z-index: 999 !important;
+  white-space: normal;
+}
+html[data-theme="dark"] .omb-mega-menu {
+  background-color: #0b0a0a !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="dark"] .omb-dark-stars {
+    animation: none !important;
+  }
+  .omb-theme-toggle-knob {
+    transition: none !important;
+  }
+}
+
+/* ==========================================================================
+   OH MY BABY — PATCH 01
+   Stable Header + Promo Marquee + Premium Dark Stars
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. HEADER MUST ALWAYS STAY ABOVE THE PAGE
+   -------------------------------------------------------------------------- */
+
+.omb-site-header {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 90 !important;
+  width: 100%;
+  opacity: 1 !important;
+  transform: none !important;
+  isolation: isolate;
+}
+
+/* Never allow the announcement bar to disappear while scrolling */
+.omb-site-header .omb-promo-bar,
+.omb-site-header.is-compact .omb-promo-bar {
+  display: block !important;
+  width: 100% !important;
+
+  height: 44px !important;
+  min-height: 44px !important;
+  max-height: 44px !important;
+
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: none !important;
+
+  pointer-events: auto !important;
+  overflow: hidden !important;
+
+  background: #000 !important;
+  color: #fff !important;
+}
+
+/* Disable the old compact behaviour that hid the navigation */
+.omb-site-header.is-compact .omb-header-nav {
+  max-height: 56px !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: none !important;
+  overflow: visible !important;
+  pointer-events: auto !important;
+}
+
+/* Keep the brand/header row at its normal size */
+.omb-site-header.is-compact .omb-header-brand-row {
+  height: 88px !important;
+}
+
+.omb-site-header.is-compact .omb-brand-mark {
+  height: 64px !important;
+  transform: none !important;
+}
+
+.omb-site-header.is-compact .omb-brand-wordmark-text {
+  transform: none !important;
+}
+
+@media (max-width: 639px) {
+  .omb-site-header.is-compact .omb-header-brand-row {
+    height: 78px !important;
+  }
+
+  .omb-site-header.is-compact .omb-brand-mark {
+    height: 56px !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   2. DARK HEADER
+   -------------------------------------------------------------------------- */
+
+html[data-theme="dark"] .omb-site-header {
+  background: #080808 !important;
+  color: #f8f5ef !important;
+}
+
+html[data-theme="dark"] .omb-header-brand,
+html[data-theme="dark"] .omb-header-nav {
+  background: #080808 !important;
+  border-color: rgba(248, 245, 239, 0.09) !important;
+}
+
+html[data-theme="dark"] .omb-promo-bar {
+  background: #000 !important;
+  color: #fff !important;
+}
+
+html[data-theme="dark"] .omb-header-icon,
+html[data-theme="dark"] .omb-nav-link,
+html[data-theme="dark"] .omb-wordmark {
+  color: #f8f5ef !important;
+}
+
+/* --------------------------------------------------------------------------
+   3. PREMIUM MOVING STAR FIELD
+   CSS ONLY — NO JS / NO CANVAS / NO SCROLL LISTENERS
+   -------------------------------------------------------------------------- */
+
+.omb-dark-stars {
+  display: none;
+  pointer-events: none;
+}
+
+html[data-theme="dark"] .omb-dark-stars {
+  display: block !important;
+
+  position: fixed !important;
+
+  /*
+   * Larger than the viewport so the edges never become visible
+   * while the layer slowly moves.
+   */
+  inset: -12vh -12vw !important;
+
+  z-index: 0 !important;
+  pointer-events: none !important;
+
+  opacity: 0.48 !important;
+
+  background-image:
+    radial-gradient(
+      circle,
+      rgba(255, 255, 255, 0.95) 0 0.65px,
+      transparent 0.9px
+    ),
+    radial-gradient(
+      circle,
+      rgba(255, 255, 255, 0.68) 0 0.55px,
+      transparent 0.8px
+    ),
+    radial-gradient(
+      circle,
+      rgba(255, 255, 255, 0.48) 0 0.45px,
+      transparent 0.7px
+    );
+
+  background-size:
+    131px 149px,
+    199px 217px,
+    293px 311px;
+
+  background-position:
+    17px 29px,
+    83px 57px,
+    151px 103px;
+
+  transform: translate3d(0, 0, 0);
+
+  animation: omb-premium-stars-drift 70s linear infinite !important;
+
+  will-change: transform;
+}
+
+@keyframes omb-premium-stars-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+
+  to {
+    transform: translate3d(-80px, 52px, 0);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   4. DEEP BLACK DARK BACKGROUND
+   -------------------------------------------------------------------------- */
+
+html[data-theme="dark"],
+html[data-theme="dark"] body,
+html[data-theme="dark"] #root {
+  background: #040404 !important;
+}
+
+html[data-theme="dark"] #root > .min-h-screen {
+  position: relative;
+  isolation: isolate;
+
+  /*
+   * Slight transparency is intentional:
+   * it allows the stars to breathe through the page very subtly.
+   */
+  background: rgba(4, 4, 4, 0.72) !important;
+}
+
+html[data-theme="dark"] #root > .min-h-screen > :not(.omb-dark-stars) {
+  position: relative;
+  z-index: 1;
+}
+
+/* --------------------------------------------------------------------------
+   5. ACCESSIBILITY / PERFORMANCE
+   -------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="dark"] .omb-dark-stars {
+    animation: none !important;
+    will-change: auto;
+  }
+}
+/* ==========================================================================
+   OH MY BABY — PATCH 01B
+   Premium visible moving stars — FINAL
+   ========================================================================== */
+
+/* Let the star layer show through the dark page */
+html[data-theme="dark"] #root > .min-h-screen {
+  background: transparent !important;
+}
+
+html[data-theme="dark"] main {
+  background: transparent !important;
+}
+
+/* Keep sections dark, but slightly transparent */
+html[data-theme="dark"] main section.bg-milk {
+  background-color: rgba(5, 5, 5, 0.62) !important;
+}
+
+html[data-theme="dark"] main section.bg-oat {
+  background-color: rgba(18, 15, 14, 0.68) !important;
+}
+
+html[data-theme="dark"] main section.bg-espresso {
+  background-color: rgba(15, 13, 12, 0.74) !important;
+}
+
+/* Premium micro-star field */
+html[data-theme="dark"] .omb-dark-stars {
+  display: block !important;
+
+  position: fixed !important;
+  inset: -12vh -12vw !important;
+
+  z-index: 0 !important;
+  pointer-events: none !important;
+
+  opacity: 0.9 !important;
+
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 1) 0 1px, transparent 1.3px),
+    radial-gradient(
+      circle,
+      rgba(255, 255, 255, 0.82) 0 0.8px,
+      transparent 1.1px
+    ),
+    radial-gradient(circle, rgba(255, 255, 255, 0.6) 0 0.6px, transparent 0.9px);
+
+  background-size:
+    101px 117px,
+    163px 181px,
+    239px 263px;
+
+  background-position:
+    13px 19px,
+    73px 51px,
+    139px 97px;
+
+  transform: translate3d(0, 0, 0);
+
+  animation: omb-premium-stars-drift-final 20s linear infinite !important;
+
+  will-change: transform;
+}
+
+@keyframes omb-premium-stars-drift-final {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+
+  to {
+    transform: translate3d(-150px, 95px, 0);
+  }
+}
+
+/* Reduced motion accessibility */
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="dark"] .omb-dark-stars {
+    animation: none !important;
+    will-change: auto;
+  }
+}
+/* ==========================================================================
+   OH MY BABY — COMPACT STICKY HEADER — FINAL
+   Promo stays EXACTLY the same
+   ========================================================================== */
+
+.omb-site-header,
+.omb-site-header .omb-header-brand-row,
+.omb-site-header .omb-header-nav,
+.omb-site-header .omb-brand-mark,
+.omb-site-header .omb-brand-wordmark-text {
+  transition:
+    height 360ms var(--ease-premium),
+    min-height 360ms var(--ease-premium),
+    max-height 360ms var(--ease-premium),
+    transform 360ms var(--ease-premium),
+    font-size 360ms var(--ease-premium);
+}
+
+/* =========================================================
+   PROMO BAR — NEVER CHANGES
+   ========================================================= */
+
+.omb-site-header .omb-promo-bar,
+.omb-site-header.is-compact .omb-promo-bar {
+  height: 44px !important;
+  min-height: 44px !important;
+  max-height: 44px !important;
+
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: none !important;
+}
+
+.omb-site-header .omb-promo-track,
+.omb-site-header.is-compact .omb-promo-track,
+.omb-site-header .omb-promo-group,
+.omb-site-header.is-compact .omb-promo-group {
+  height: 44px !important;
+}
+
+/* Keep the original marquee typography */
+.omb-site-header .omb-promo-bar .omb-promo-track .omb-promo-group span,
+.omb-site-header.is-compact
+  .omb-promo-bar
+  .omb-promo-track
+  .omb-promo-group
+  span {
+  font-size: 25px !important;
+  line-height: 44px !important;
+}
+
+/* =========================================================
+   BRAND ROW — COMPACT, BUT STILL CLEAR
+   ========================================================= */
+
+.omb-site-header.is-compact .omb-header-brand-row {
+  height: 50px !important;
+}
+
+.omb-site-header.is-compact .omb-brand-mark {
+  height: 40px !important;
+  transform: none !important;
+}
+
+.omb-site-header.is-compact .omb-brand-wordmark-text {
+  transform: scale(0.94) !important;
+}
+
+/* =========================================================
+   NAVIGATION — SMALLER, NOT TINY
+   ========================================================= */
+
+.omb-site-header.is-compact .omb-header-nav {
+  height: 36px !important;
+  max-height: 36px !important;
+
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: none !important;
+
+  overflow: visible !important;
+  pointer-events: auto !important;
+}
+
+.omb-site-header.is-compact .omb-header-nav > div {
+  height: 46px !important;
+}
+
+.omb-site-header.is-compact .omb-nav-link {
+  font-size: 15px !important;
+}
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 639px) {
+  /* Promo stays completely untouched on mobile too */
+  .omb-site-header.is-compact .omb-promo-bar,
+  .omb-site-header.is-compact .omb-promo-track,
+  .omb-site-header.is-compact .omb-promo-group {
+    height: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+  }
+
+  .omb-site-header.is-compact
+    .omb-promo-bar
+    .omb-promo-track
+    .omb-promo-group
+    span {
+    font-size: 25px !important;
+    line-height: 44px !important;
+  }
+
+  .omb-site-header.is-compact .omb-header-brand-row {
+    height: 25px !important;
+  }
+
+  .omb-site-header.is-compact .omb-brand-mark {
+    height: 10px !important;
+    transform: none !important;
+  }
+
+  .omb-site-header.is-compact .omb-brand-wordmark-text {
+    transform: scale(0.76) !important;
+  }
+}
+/* ==========================================================================
+   OH MY BABY — VIEWPORT / ZOOM STABILITY
+   Prevent layout-animation jitter while browser viewport is changing
+   ========================================================================== */
+
+html {
+  scrollbar-gutter: stable;
+}
+
+/*
+ * Browser zoom fires viewport resize events.
+ * During that very short moment, don't animate layout dimensions.
+ */
+html.omb-viewport-resizing .omb-site-header,
+html.omb-viewport-resizing .omb-header-brand-row,
+html.omb-viewport-resizing .omb-header-nav,
+html.omb-viewport-resizing .omb-brand-mark,
+html.omb-viewport-resizing .omb-brand-wordmark-text {
+  transition: none !important;
+}
+
+/*
+ * Pause continuous decorative motion only while zooming/resizing.
+ * It resumes automatically ~180ms after the user stops.
+ */
+html.omb-viewport-resizing .omb-promo-track,
+html.omb-viewport-resizing .omb-dark-stars {
+  animation-play-state: paused !important;
+}
+
+/* ==========================================================================
+   OH MY BABY — 2026-09-12 stability + commerce patch
+   Keep this block last so it wins over the historic header experiments above.
+   ========================================================================== */
+
+/* The header now has one stable geometry; scroll no longer switches layouts. */
+.omb-site-header,
+.omb-site-header .omb-header-brand-row,
+.omb-site-header .omb-header-nav,
+.omb-site-header .omb-brand-mark,
+.omb-site-header .omb-brand-wordmark-text {
+  transition: color 220ms ease, background-color 220ms ease, border-color 220ms ease !important;
+}
+
+html {
+  scroll-padding-top: var(--omb-header-offset, 190px);
+}
+
+[id] {
+  scroll-margin-top: var(--omb-header-offset, 190px);
+}
+
+/* Add-to-cart confirmation: fixed immediately below the measured sticky header. */
+.omb-cart-added-notice {
+  position: fixed;
+  top: var(--omb-header-offset, 190px);
+  left: 18px;
+  right: 18px;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  max-width: 980px;
+  margin-inline: auto;
+  padding: 15px 16px;
+  border: 1px solid rgba(47, 39, 35, 0.18);
+  background: rgba(248, 245, 239, 0.98);
+  color: #2f2723;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.16);
+  backdrop-filter: blur(14px);
+  animation: ombCartNoticeIn 240ms var(--ease-premium) both;
+}
+
+.omb-cart-added-copy { display: grid; gap: 3px; }
+.omb-cart-added-copy strong { font-size: 14px; font-weight: 900; }
+.omb-cart-added-copy span { font-size: 12px; opacity: 0.72; line-height: 1.55; }
+.omb-cart-added-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.omb-cart-added-cta { min-height: 40px !important; padding-inline: 18px !important; font-size: 12px !important; }
+.omb-cart-added-close { width: 38px; height: 38px; border: 1px solid rgba(47,39,35,.14); font-size: 22px; }
+
+html[data-theme="dark"] .omb-cart-added-notice {
+  border-color: rgba(255,255,255,.18);
+  background: rgba(8, 8, 8, 0.97);
+  color: #f8f5ef;
+  box-shadow: 0 20px 60px rgba(0,0,0,.55);
+}
+html[data-theme="dark"] .omb-cart-added-close { border-color: rgba(255,255,255,.18); color: #f8f5ef; }
+
+@keyframes ombCartNoticeIn {
+  from { opacity: 0; transform: translate3d(0,-10px,0); }
+  to { opacity: 1; transform: translate3d(0,0,0); }
+}
+
+@media (max-width: 640px) {
+  .omb-cart-added-notice { left: 10px; right: 10px; align-items: stretch; flex-direction: column; gap: 10px; }
+  .omb-cart-added-actions { width: 100%; }
+  .omb-cart-added-cta { flex: 1; }
+}
+
+/* Best sellers runs forever in the opposite direction from the promo ticker. */
+.omb-best-marquee:hover .omb-best-marquee-track,
+.omb-best-marquee:focus-within .omb-best-marquee-track {
+  animation-play-state: running !important;
+}
+.omb-best-marquee-track { animation: ombBestLoopFixed 36s linear infinite !important; }
+.omb-best-marquee-card { width: clamp(230px, 19vw, 330px) !important; min-width: 230px !important; max-width: 330px !important; }
+.omb-best-marquee-card .omb-dual-price { display: grid !important; }
+@media (max-width: 639px) {
+  .omb-best-marquee-track { animation-duration: 31s !important; }
+  .omb-best-marquee-card { width: 72vw !important; min-width: 72vw !important; max-width: 72vw !important; }
+}
+
+/* Dual currency: USD remains the catalog base; New SYP is a live display conversion. */
+.omb-dual-price { display: grid; gap: 5px; min-width: 0; }
+.omb-dual-price-usd { display: flex; align-items: baseline; gap: 8px; color: var(--color-aubergine); font-weight: 900; line-height: 1.15; }
+.omb-dual-price-compare { color: color-mix(in srgb, var(--color-espresso) 40%, transparent); font-size: .8em; font-weight: 600; text-decoration: line-through; }
+.omb-dual-price-syp { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; color: #55705b; font-size: 12px; font-weight: 900; line-height: 1.2; }
+.omb-dual-price-syp small { font-size: 9px; letter-spacing: .02em; opacity: .72; }
+.omb-syp-mark { display: inline-flex; width: 20px; height: 20px; align-items: center; justify-content: center; border: 1px solid currentColor; border-radius: 999px; font-size: 11px; font-weight: 900; }
+.omb-dual-price.is-compact { gap: 2px; }
+.omb-dual-price.is-compact .omb-dual-price-usd { font-size: 12px; }
+.omb-dual-price.is-compact .omb-dual-price-syp { font-size: 10px; }
+.omb-dual-price.is-compact .omb-syp-mark { width: 17px; height: 17px; font-size: 9px; }
+.omb-dual-price.is-light .omb-dual-price-usd { color: #fff; }
+.omb-dual-price.is-light .omb-dual-price-compare { color: rgba(255,255,255,.55); }
+.omb-dual-price.is-light .omb-dual-price-syp { color: #d8efc5; }
+html[data-theme="dark"] .omb-dual-price-syp { color: #b8d6ad; }
+html[data-theme="dark"] .omb-dual-price-compare { color: rgba(248,245,239,.42); }
+
+/* A restrained moving ambient field in light mode, matching rather than copying dark mode. */
+html[data-theme="light"] #root > .min-h-screen { background: transparent !important; }
+html[data-theme="light"] main { background: transparent !important; }
+html[data-theme="light"] .omb-dark-stars {
+  display: block !important;
+  position: fixed !important;
+  inset: -12vh -12vw !important;
+  z-index: 0 !important;
+  pointer-events: none !important;
+  opacity: .22 !important;
+  background-image:
+    radial-gradient(circle, rgba(77,57,64,.52) 0 0.75px, transparent 1px),
+    radial-gradient(circle, rgba(151,121,90,.46) 0 0.65px, transparent .95px),
+    radial-gradient(circle, rgba(93,118,91,.32) 0 0.55px, transparent .85px);
+  background-size: 137px 151px, 211px 227px, 293px 317px;
+  background-position: 19px 29px, 97px 61px, 151px 113px;
+  animation: ombLightDustDrift 48s linear infinite !important;
+  will-change: transform;
+}
+html[data-theme="light"] #root > .min-h-screen > :not(.omb-dark-stars) { position: relative; z-index: 1; }
+html[data-theme="light"] main section.bg-milk { background-color: rgba(248,245,239,.93) !important; }
+html[data-theme="light"] main section.bg-oat\/30 { background-color: rgba(235,226,214,.91) !important; }
+@keyframes ombLightDustDrift { from { transform: translate3d(0,0,0); } to { transform: translate3d(120px,-72px,0); } }
+
+/* Neutral lower-page color treatment. */
+.omb-newsletter-section { background: #161311 !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="light"] .omb-dark-stars,
+  .omb-best-marquee-track { animation: none !important; }
+}
+
+.omb-order-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid rgba(47,39,35,.14);
+  background: rgba(235,226,214,.5);
+  font-size: 11px;
+  font-weight: 900;
+}
+.omb-order-status.is-pending_review { border-color: rgba(151,121,90,.35); color: #7b6048; }
+.omb-order-status.is-accepted { border-color: rgba(93,118,91,.38); color: #55705b; }
+.omb-order-status.is-out_for_delivery { border-color: rgba(86,98,139,.4); color: #4d587f; }
+.omb-order-status.is-delivered { background: rgba(93,118,91,.12); border-color: rgba(93,118,91,.45); color: #45614b; }
+.omb-order-status.is-cancelled { border-color: rgba(137,72,72,.35); color: #875151; }
+html[data-theme="dark"] .omb-order-status { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.15); }
+.omb-best-marquee.is-en .omb-best-marquee-track {
+  animation-name: ombBestLoopOppositeEn !important;
+}
+@keyframes ombBestLoopOppositeEn {
+  from { transform: translate3d(-50%, 0, 0); }
+  to { transform: translate3d(0, 0, 0); }
+}
+
+/* ==========================================================================
+   OH MY BABY — VISUAL CORRECTION 2026-09-12B
+   Warm monochrome palette + stable compact header + true seamless marquee.
+   Keep this block LAST so it overrides the older experiments above.
+   ========================================================================== */
+
+/* 1) Final palette: off-white + beige in light, black + beige in dark. */
+html[data-theme="light"] {
+  --color-milk: #fbf8f2;
+  --color-oat: #e7dccb;
+  --color-espresso: #171412;
+  --color-aubergine: #745f49;
+  --color-pistachio: #c9b392;
+  --color-butter: #e5cfad;
+}
+html[data-theme="dark"] {
+  --color-milk: #090807;
+  --color-oat: #17130f;
+  --color-espresso: #f4ede3;
+  --color-aubergine: #d5bea0;
+  --color-pistachio: #c8af8c;
+  --color-butter: #ead8b9;
+}
+html[data-theme="light"] body { background: #fbf8f2 !important; color: #171412; }
+html[data-theme="dark"] body { background: #050505 !important; color: #f4ede3; }
+
+/* Remove the old pink/green feeling from common controls and surfaces. */
+html[data-theme="light"] .bg-oat\/20 { background-color: rgba(231,220,203,.42) !important; }
+html[data-theme="light"] .bg-oat\/25 { background-color: rgba(231,220,203,.50) !important; }
+html[data-theme="light"] .bg-oat\/30 { background-color: rgba(231,220,203,.68) !important; }
+html[data-theme="light"] .bg-oat\/35 { background-color: rgba(231,220,203,.74) !important; }
+html[data-theme="light"] .bg-oat\/40 { background-color: rgba(231,220,203,.78) !important; }
+html[data-theme="dark"] .bg-oat\/20,
+html[data-theme="dark"] .bg-oat\/25,
+html[data-theme="dark"] .bg-oat\/30,
+html[data-theme="dark"] .bg-oat\/35,
+html[data-theme="dark"] .bg-oat\/40 { background-color: rgba(23,19,15,.82) !important; }
+
+/* 2) Header: only the BRAND ROW becomes compact. Promo + nav keep exact height. */
+.omb-site-header,
+.omb-site-header .omb-header-nav,
+.omb-site-header .omb-promo-bar {
+  transition: background-color 220ms ease, color 220ms ease, border-color 220ms ease !important;
+}
+.omb-site-header .omb-header-brand-row,
+.omb-site-header .omb-brand-mark,
+.omb-site-header .omb-brand-wordmark-text {
+  transition:
+    height 320ms cubic-bezier(.22,1,.36,1),
+    transform 320ms cubic-bezier(.22,1,.36,1) !important;
+}
+.omb-site-header .omb-promo-bar,
+.omb-site-header.is-compact .omb-promo-bar {
+  height: 44px !important;
+  min-height: 44px !important;
+  max-height: 44px !important;
+}
+.omb-site-header .omb-header-nav,
+.omb-site-header.is-compact .omb-header-nav {
+  height: 54px !important;
+  min-height: 54px !important;
+  max-height: 54px !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: none !important;
+  overflow: visible !important;
+  pointer-events: auto !important;
+}
+.omb-site-header .omb-header-nav > div,
+.omb-site-header.is-compact .omb-header-nav > div {
+  height: 54px !important;
+}
+.omb-site-header.is-compact .omb-header-brand-row {
+  height: 60px !important;
+}
+.omb-site-header.is-compact .omb-brand-mark {
+  height: 46px !important;
+  transform: none !important;
+}
+.omb-site-header.is-compact .omb-brand-wordmark-text {
+  transform: scale(.90) !important;
+}
+.omb-site-header.is-compact .omb-nav-link {
+  font-size: 15px !important;
+}
+@media (max-width: 1023px) {
+  .omb-site-header .omb-header-nav,
+  .omb-site-header.is-compact .omb-header-nav { display: none !important; }
+}
+@media (max-width: 639px) {
+  .omb-site-header.is-compact .omb-header-brand-row { height: 62px !important; }
+  .omb-site-header.is-compact .omb-brand-mark { height: 44px !important; }
+  .omb-site-header.is-compact .omb-brand-wordmark-text { transform: scale(.88) !important; }
+}
+
+/* 3) Offer card: BOTH themes stay in the original bottom-left position. */
+.omb-offer-nudge,
+html[data-theme="light"] .omb-offer-nudge,
+html[data-theme="dark"] .omb-offer-nudge {
+  position: fixed !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: 22px !important;
+  left: 22px !important;
+  width: min(340px, calc(100vw - 28px)) !important;
+  z-index: 130 !important;
+  border: 1px solid color-mix(in srgb, var(--color-espresso) 14%, transparent) !important;
+  background: color-mix(in srgb, var(--color-milk) 96%, transparent) !important;
+  color: var(--color-espresso) !important;
+  backdrop-filter: blur(14px);
+}
+@media (max-width: 640px) {
+  .omb-offer-nudge,
+  html[data-theme="light"] .omb-offer-nudge,
+  html[data-theme="dark"] .omb-offer-nudge {
+    left: 12px !important;
+    bottom: 12px !important;
+    width: min(330px, calc(100vw - 24px)) !important;
+  }
+}
+
+/* 4) Light mode gets the same living micro-particle idea as dark mode. */
+html[data-theme="light"] .omb-dark-stars {
+  display: block !important;
+  position: fixed !important;
+  inset: -12vh -12vw !important;
+  z-index: 0 !important;
+  pointer-events: none !important;
+  opacity: .38 !important;
+  background-image:
+    radial-gradient(circle, rgba(79,63,48,.66) 0 .85px, transparent 1.15px),
+    radial-gradient(circle, rgba(168,139,104,.62) 0 .72px, transparent 1.02px),
+    radial-gradient(circle, rgba(111,90,68,.44) 0 .58px, transparent .9px) !important;
+  background-size: 103px 121px, 167px 187px, 241px 269px !important;
+  background-position: 17px 23px, 81px 57px, 149px 101px !important;
+  animation: omb-light-stars-final 34s linear infinite !important;
+  will-change: transform;
+}
+@keyframes omb-light-stars-final {
+  from { transform: translate3d(0,0,0); }
+  to { transform: translate3d(145px,-88px,0); }
+}
+html[data-theme="light"] #root > .min-h-screen { background: rgba(251,248,242,.70) !important; }
+html[data-theme="light"] main section.bg-milk { background-color: rgba(251,248,242,.88) !important; }
+html[data-theme="light"] main section.bg-oat\/30 { background-color: rgba(231,220,203,.86) !important; }
+
+/* 5) Best sellers: two identical 10-item sequences = no empty gap at any normal zoom. */
+.omb-best-marquee {
+  width: 100% !important;
+  overflow: hidden !important;
+  direction: ltr !important;
+}
+.omb-best-marquee-track {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  width: max-content !important;
+  gap: 0 !important;
+  will-change: transform;
+}
+.omb-best-marquee-sequence {
+  display: flex !important;
+  flex: 0 0 auto !important;
+  width: max-content !important;
+  gap: 18px !important;
+  padding-inline-end: 18px !important;
+}
+.omb-best-marquee-card {
+  flex: 0 0 auto !important;
+  width: max(240px, 12vw) !important;
+  min-width: 240px !important;
+  max-width: none !important;
+  margin: 0 !important;
+}
+.omb-best-marquee.is-ar .omb-best-marquee-track {
+  animation: omb-best-seamless-left 42s linear infinite !important;
+}
+.omb-best-marquee.is-en .omb-best-marquee-track {
+  animation: omb-best-seamless-right 42s linear infinite !important;
+}
+.omb-best-marquee:hover .omb-best-marquee-track,
+.omb-best-marquee:focus-within .omb-best-marquee-track {
+  animation-play-state: running !important;
+}
+@keyframes omb-best-seamless-left {
+  from { transform: translate3d(0,0,0); }
+  to { transform: translate3d(-50%,0,0); }
+}
+@keyframes omb-best-seamless-right {
+  from { transform: translate3d(-50%,0,0); }
+  to { transform: translate3d(0,0,0); }
+}
+@media (max-width: 639px) {
+  .omb-best-marquee-sequence { gap: 12px !important; padding-inline-end: 12px !important; }
+  .omb-best-marquee-card { width: 72vw !important; min-width: 72vw !important; }
+  .omb-best-marquee.is-ar .omb-best-marquee-track,
+  .omb-best-marquee.is-en .omb-best-marquee-track { animation-duration: 48s !important; }
+}
+
+/* 6) Rewards: simpler, readable, premium — no giant decoration or competing shapes. */
+.omb-rewards-section { background: transparent; }
+.omb-rewards-panel {
+  display: grid;
+  grid-template-columns: minmax(0,1.15fr) minmax(360px,.85fr);
+  overflow: hidden;
+  border: 1px solid rgba(23,20,18,.12);
+  background: #e7dccb;
+  color: #171412;
+}
+.omb-rewards-copy { padding: clamp(34px,5vw,76px); }
+.omb-rewards-eyebrow { display:flex; align-items:center; gap:10px; font-size:12px; font-weight:900; letter-spacing:.12em; text-transform:uppercase; color:#745f49; }
+.omb-rewards-dot { width:8px; height:8px; border-radius:999px; background:#745f49; }
+.omb-rewards-copy h2 { margin-top:24px; max-width:760px; font-size:clamp(42px,5.5vw,78px); line-height:1.02; font-weight:950; letter-spacing:-.035em; }
+.omb-rewards-intro { margin-top:22px; max-width:700px; font-size:17px; line-height:1.9; font-weight:600; color:rgba(23,20,18,.68); }
+.omb-rewards-steps { display:grid; gap:0; margin-top:34px; border-top:1px solid rgba(23,20,18,.14); }
+.omb-rewards-step { display:grid; grid-template-columns:44px 1fr; gap:14px; padding:17px 0; border-bottom:1px solid rgba(23,20,18,.14); }
+.omb-rewards-step > span { font:700 11px/1 var(--font-serif); letter-spacing:.12em; color:#745f49; padding-top:5px; }
+.omb-rewards-step strong { display:block; font-size:16px; font-weight:950; }
+.omb-rewards-step p { margin-top:4px; font-size:13px; line-height:1.7; color:rgba(23,20,18,.60); }
+.omb-rewards-cta { display:inline-flex; align-items:center; gap:14px; margin-top:30px; padding:14px 18px; background:#171412; color:#fbf8f2; font-size:13px; font-weight:900; text-decoration:none; }
+.omb-rewards-card-wrap { display:flex; flex-direction:column; justify-content:center; padding:clamp(28px,4vw,58px); background:#171412; color:#f4ede3; }
+.omb-rewards-card { border:1px solid rgba(234,216,185,.24); background:#0c0a09; padding:clamp(28px,3vw,42px); box-shadow:0 22px 70px rgba(0,0,0,.18); }
+.omb-rewards-card-top { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; }
+.omb-rewards-card-top > div { display:grid; gap:7px; }
+.omb-rewards-card-kicker { font:700 10px/1 var(--font-serif); letter-spacing:.2em; color:rgba(244,237,227,.48); }
+.omb-rewards-card-top strong { color:#ead8b9; font-size:13px; }
+.omb-rewards-level-mark { display:grid; place-items:center; width:48px; height:48px; border-radius:999px; background:#ead8b9; color:#171412; font-weight:950; }
+.omb-rewards-level-copy { margin-top:54px; }
+.omb-rewards-level-copy > span { font-size:13px; color:rgba(244,237,227,.55); }
+.omb-rewards-level-copy h3 { margin-top:6px; font-size:clamp(34px,4vw,52px); line-height:1; font-weight:950; }
+.omb-rewards-progress-row { display:flex; justify-content:space-between; gap:20px; margin-top:36px; font-size:12px; }
+.omb-rewards-progress-row span { color:rgba(244,237,227,.48); }
+.omb-rewards-progress { height:4px; margin-top:12px; background:rgba(244,237,227,.13); overflow:hidden; }
+.omb-rewards-progress span { display:block; width:80%; height:100%; background:#ead8b9; }
+.omb-rewards-next { display:grid; gap:7px; margin-top:34px; padding-top:24px; border-top:1px solid rgba(244,237,227,.13); }
+.omb-rewards-next span { font-size:11px; color:rgba(244,237,227,.48); }
+.omb-rewards-next strong { font-size:17px; line-height:1.55; }
+.omb-rewards-footnote { margin:14px 0 0; text-align:center; font-size:11px; color:rgba(244,237,227,.46); }
+
+html[data-theme="dark"] .omb-rewards-panel { border-color:rgba(234,216,185,.16); background:#0a0908; color:#f4ede3; }
+html[data-theme="dark"] .omb-rewards-copy { background:#0a0908; }
+html[data-theme="dark"] .omb-rewards-eyebrow { color:#d5bea0; }
+html[data-theme="dark"] .omb-rewards-dot { background:#d5bea0; }
+html[data-theme="dark"] .omb-rewards-intro { color:rgba(244,237,227,.68); }
+html[data-theme="dark"] .omb-rewards-steps { border-top-color:rgba(234,216,185,.16); }
+html[data-theme="dark"] .omb-rewards-step { border-bottom-color:rgba(234,216,185,.16); }
+html[data-theme="dark"] .omb-rewards-step > span { color:#d5bea0; }
+html[data-theme="dark"] .omb-rewards-step p { color:rgba(244,237,227,.58); }
+html[data-theme="dark"] .omb-rewards-cta { background:#d5bea0; color:#090807; }
+html[data-theme="dark"] .omb-rewards-card-wrap { background:#14100d; }
+
+@media (max-width: 900px) {
+  .omb-rewards-panel { grid-template-columns:1fr; }
+  .omb-rewards-card-wrap { padding-top:34px; padding-bottom:34px; }
+}
+
+/* 7) Currency and status accents also use the warm palette. */
+.omb-dual-price-syp { color:#745f49 !important; }
+html[data-theme="dark"] .omb-dual-price-syp { color:#d5bea0 !important; }
+.omb-order-status.is-pending_review,
+.omb-order-status.is-accepted,
+.omb-order-status.is-out_for_delivery,
+.omb-order-status.is-delivered { color:#745f49 !important; border-color:rgba(116,95,73,.36) !important; }
+html[data-theme="dark"] .omb-order-status.is-pending_review,
+html[data-theme="dark"] .omb-order-status.is-accepted,
+html[data-theme="dark"] .omb-order-status.is-out_for_delivery,
+html[data-theme="dark"] .omb-order-status.is-delivered { color:#d5bea0 !important; border-color:rgba(213,190,160,.30) !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="light"] .omb-dark-stars,
+  .omb-best-marquee-track { animation: none !important; }
+}
+
+/* Contrast guards for beige accents in dark mode. */
+html[data-theme="dark"] .bg-aubergine.text-milk,
+html[data-theme="dark"] .bg-pistachio.text-espresso,
+html[data-theme="dark"] .bg-butter.text-espresso {
+  color: #090807 !important;
+}
+
+
+/* =========================================================
+   OH MY BABY — VISUAL FIX V3 — 2026-09-13
+   ========================================================= */
+
+/* Larger best-seller cards without turning the strip into a static grid. */
+.omb-best-marquee-card {
+  width: clamp(285px, 16vw, 365px) !important;
+  min-width: 285px !important;
+  max-width: 365px !important;
+}
+.omb-best-marquee.is-ar .omb-best-marquee-track,
+.omb-best-marquee.is-en .omb-best-marquee-track {
+  animation-duration: 46s !important;
+}
+@media (max-width: 639px) {
+  .omb-best-marquee-card {
+    width: 80vw !important;
+    min-width: 80vw !important;
+    max-width: 80vw !important;
+  }
+}
+
+/* Anchor fallback: JavaScript aligns the first meaningful section content
+   directly below the sticky header. Keep native hash navigation consistent. */
+#home-hero,
+#new-arrivals,
+#product-hero,
+#baby-world,
+#featured-collection,
+#newborn-essentials,
+#best-sellers,
+#account {
+  scroll-margin-top: var(--omb-header-offset, 190px) !important;
+}
+
+/* Syrian price is intentionally distinct from USD while staying inside the warm palette. */
+.omb-dual-price-syp,
+.omb-dual-price.is-light .omb-dual-price-syp {
+  color: #9b5f32 !important;
+}
+html[data-theme="dark"] .omb-dual-price-syp,
+html[data-theme="dark"] .omb-dual-price.is-light .omb-dual-price-syp {
+  color: #e6c18e !important;
+}
+.omb-dual-price-syp .omb-syp-mark {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  border-width: 1.5px;
+}
+
+/* ==========================================================================
+   OH MY BABY — VISUAL FIX V5 / 2026-09-13
+   Account entry, visible light particles, graphite + beige dark palette,
+   and one clear editorial reveal per section while scrolling.
+   ========================================================================== */
+
+/* A) Light theme: particles must be visible, not theoretical. */
+html[data-theme="light"] .omb-dark-stars {
+  display: block !important;
+  opacity: .66 !important;
+  mix-blend-mode: multiply;
+  background-image:
+    radial-gradient(circle, rgba(88,67,48,.72) 0 .88px, transparent 1.18px),
+    radial-gradient(circle, rgba(185,151,109,.82) 0 .78px, transparent 1.08px),
+    radial-gradient(circle, rgba(121,94,66,.50) 0 .62px, transparent .94px),
+    radial-gradient(circle, rgba(210,184,150,.72) 0 .54px, transparent .84px) !important;
+  background-size: 91px 107px, 149px 167px, 223px 251px, 319px 347px !important;
+  background-position: 13px 17px, 73px 49px, 131px 97px, 211px 139px !important;
+  animation: omb-light-stars-v5 30s linear infinite !important;
+}
+@keyframes omb-light-stars-v5 {
+  0% { transform: translate3d(0,0,0); }
+  50% { transform: translate3d(74px,-42px,0); }
+  100% { transform: translate3d(148px,-86px,0); }
+}
+html[data-theme="light"] #root > .min-h-screen { background: rgba(251,248,242,.58) !important; }
+html[data-theme="light"] main section.bg-milk { background-color: rgba(251,248,242,.84) !important; }
+html[data-theme="light"] main section.bg-oat\/30 { background-color: rgba(231,220,203,.80) !important; }
+
+/* B) Dark theme: kill the washed-out charcoal. Use real black/graphite + warm beige. */
+html[data-theme="dark"] {
+  --color-milk: #080808;
+  --color-oat: #101010;
+  --color-espresso: #f4eee5;
+  --color-aubergine: #d6bea0;
+  --color-pistachio: #d6bea0;
+  --color-butter: #ead9bd;
+}
+html[data-theme="dark"] body,
+html[data-theme="dark"] #root > .min-h-screen { background: #030303 !important; }
+html[data-theme="dark"] main section.bg-milk { background: rgba(3,3,3,.74) !important; }
+html[data-theme="dark"] main section.bg-oat\/30 { background: rgba(10,10,10,.82) !important; }
+html[data-theme="dark"] .bg-oat\/20,
+html[data-theme="dark"] .bg-oat\/25,
+html[data-theme="dark"] .bg-oat\/30,
+html[data-theme="dark"] .bg-oat\/35,
+html[data-theme="dark"] .bg-oat\/40 { background-color: rgba(214,190,160,.065) !important; }
+html[data-theme="dark"] .omb-newsletter-section { background: #070707 !important; border-block: 1px solid rgba(214,190,160,.12); }
+html[data-theme="dark"] .omb-rewards-panel,
+html[data-theme="dark"] .omb-rewards-copy { background: #050505 !important; }
+html[data-theme="dark"] .omb-rewards-card-wrap { background: #0b0b0b !important; }
+html[data-theme="dark"] .omb-rewards-card { background: #050505 !important; }
+
+/* C) Scroll reveal: visible but calm. The whole section arrives once, then its
+      marked copy/media can finish with a small stagger. */
+.omb-scroll-motion.is-prepared > * {
+  opacity: 0;
+  transform: translate3d(0, 34px, 0) scale(.988);
+  transform-origin: 50% 0%;
+  transition:
+    opacity 620ms cubic-bezier(.22,1,.36,1),
+    transform 820ms cubic-bezier(.22,1,.36,1);
+  will-change: opacity, transform;
+}
+.omb-scroll-motion.is-visible > * {
+  opacity: 1;
+  transform: translate3d(0,0,0) scale(1);
+  will-change: auto;
+}
+.omb-scroll-motion [data-scroll-motion-prepared="true"] {
+  transition-duration: 720ms, 880ms !important;
+}
+@media (max-width: 767px) {
+  .omb-scroll-motion.is-prepared > * { transform: translate3d(0,24px,0) scale(.992); }
+}
+
+/* D) Account: homepage is a clean invitation; the form lives in a focused modal. */
+.omb-account-shell {
+  display: grid;
+  grid-template-columns: minmax(0,1.08fr) minmax(360px,.72fr);
+  border: 1px solid rgba(23,20,18,.12);
+  background: rgba(231,220,203,.72);
+  overflow: hidden;
+}
+.omb-account-copy { padding: clamp(34px,5vw,76px); }
+.omb-account-eyebrow { display:flex; align-items:center; gap:12px; font-size:11px; font-weight:900; letter-spacing:.17em; color:#7c654c; }
+.omb-account-eyebrow > span { width:42px; height:1px; background:#7c654c; }
+.omb-account-copy h2 { margin-top:24px; max-width:760px; font-size:clamp(42px,5.4vw,76px); line-height:1.02; font-weight:950; letter-spacing:-.035em; }
+.omb-account-copy > p { margin-top:22px; max-width:700px; font-size:17px; line-height:1.9; color:rgba(23,20,18,.66); font-weight:600; }
+.omb-account-benefits { margin-top:34px; border-top:1px solid rgba(23,20,18,.13); }
+.omb-account-benefit { display:grid; grid-template-columns:46px 1fr; gap:14px; padding:17px 0; border-bottom:1px solid rgba(23,20,18,.13); }
+.omb-account-benefit > span { padding-top:4px; font:700 11px/1 var(--font-serif); letter-spacing:.12em; color:#7c654c; }
+.omb-account-benefit strong { display:block; font-size:15px; font-weight:950; }
+.omb-account-benefit p { margin-top:4px; font-size:13px; line-height:1.7; color:rgba(23,20,18,.56); }
+.omb-account-entry { display:flex; flex-direction:column; justify-content:center; padding:clamp(34px,4.5vw,64px); background:#171412; color:#f5efe6; }
+.omb-account-entry-mark { display:grid; place-items:center; width:54px; height:54px; border:1px solid rgba(234,217,189,.34); border-radius:999px; color:#ead9bd; font:800 11px/1 var(--font-serif); letter-spacing:.14em; }
+.omb-account-entry-kicker { margin-top:46px; font-size:10px; letter-spacing:.18em; color:rgba(245,239,230,.48); font-weight:900; }
+.omb-account-entry h3 { margin-top:10px; font-size:clamp(30px,3.5vw,46px); line-height:1.08; font-weight:950; }
+.omb-account-main-cta { margin-top:30px; display:grid; grid-template-columns:36px 1fr auto; align-items:center; gap:14px; width:100%; min-height:58px; border:1px solid rgba(234,217,189,.25); background:#f5efe6; color:#171412; padding:10px 16px; text-align:start; font-size:14px; font-weight:950; transition:transform 220ms ease, background-color 220ms ease; }
+.omb-account-main-cta:hover { transform:translateY(-2px); background:#ead9bd; }
+.omb-account-google-g { display:grid; place-items:center; width:32px; height:32px; border-radius:999px; background:#fff; color:#171412; border:1px solid rgba(23,20,18,.12); font-weight:950; }
+.omb-account-entry-note { margin-top:18px; font-size:11px; line-height:1.8; color:rgba(245,239,230,.52); }
+
+.omb-auth-modal { position:fixed; inset:0; z-index:300; display:grid; place-items:center; padding:18px; }
+.omb-auth-backdrop { position:absolute; inset:0; border:0; background:rgba(0,0,0,.70); backdrop-filter:blur(8px); cursor:default; }
+.omb-auth-dialog { position:relative; z-index:1; width:min(620px,100%); max-height:min(88vh,860px); overflow:auto; background:#fbf8f2; color:#171412; border:1px solid rgba(255,255,255,.16); box-shadow:0 30px 100px rgba(0,0,0,.32); }
+.omb-auth-dialog-head { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:22px 24px 18px; border-bottom:1px solid rgba(23,20,18,.10); }
+.omb-auth-dialog-head p { font:700 10px/1 var(--font-serif); letter-spacing:.20em; color:#7c654c; }
+.omb-auth-dialog-head strong { display:block; margin-top:7px; font-size:22px; font-weight:950; }
+.omb-auth-dialog-head button { display:grid; place-items:center; width:38px; height:38px; border:1px solid rgba(23,20,18,.12); background:transparent; font-size:24px; line-height:1; }
+.omb-auth-dialog > .border { border:0 !important; background:transparent !important; }
+html[data-theme="dark"] .omb-account-shell { border-color:rgba(214,190,160,.15); background:rgba(5,5,5,.84); }
+html[data-theme="dark"] .omb-account-copy > p { color:rgba(245,239,230,.65); }
+html[data-theme="dark"] .omb-account-benefits { border-top-color:rgba(214,190,160,.14); }
+html[data-theme="dark"] .omb-account-benefit { border-bottom-color:rgba(214,190,160,.14); }
+html[data-theme="dark"] .omb-account-benefit p { color:rgba(245,239,230,.54); }
+html[data-theme="dark"] .omb-account-entry { background:#0b0b0b; }
+html[data-theme="dark"] .omb-auth-dialog { background:#080808; color:#f4eee5; border-color:rgba(214,190,160,.18); }
+html[data-theme="dark"] .omb-auth-dialog-head { border-bottom-color:rgba(214,190,160,.14); }
+html[data-theme="dark"] .omb-auth-dialog-head button { border-color:rgba(214,190,160,.18); color:#f4eee5; }
+
+@media (max-width: 900px) {
+  .omb-account-shell { grid-template-columns:1fr; }
+  .omb-account-entry-kicker { margin-top:28px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="light"] .omb-dark-stars { animation:none !important; }
+  .omb-scroll-motion.is-prepared > * { opacity:1 !important; transform:none !important; transition:none !important; }
+}
+
+/* ==========================================================================
+   OH MY BABY — VISUAL FIX V6 / 2026-09-13
+   Clear account hierarchy + discovery-only Best Sellers.
+   ========================================================================== */
+
+/* Account typography: premium, readable, no oversized billboard headline. */
+.omb-account-copy h2 {
+  max-width: 660px !important;
+  font-size: clamp(30px, 3.45vw, 50px) !important;
+  line-height: 1.08 !important;
+  letter-spacing: -0.025em !important;
+}
+.omb-account-copy > p {
+  max-width: 640px !important;
+  font-size: 15px !important;
+  line-height: 1.8 !important;
+}
+.omb-account-entry h3 {
+  font-size: clamp(24px, 2.5vw, 34px) !important;
+  line-height: 1.12 !important;
+}
+
+/* Rewards title is still a hero statement, but no longer competes with the actual page hero. */
+.omb-rewards-copy h2 {
+  font-size: clamp(34px, 4.2vw, 60px) !important;
+  line-height: 1.04 !important;
+}
+.omb-rewards-intro {
+  font-size: 15px !important;
+  line-height: 1.8 !important;
+}
+
+/* Best Sellers is discovery only: no static prices and no quick add.
+   Price appears inside the image only on hover/focus; the card opens the full product page. */
+.omb-best-marquee-card > article > a {
+  color: inherit;
+  text-decoration: none;
+}
+.omb-best-marquee-card article h3 {
+  transition: color 220ms ease;
+}
+.omb-best-marquee-card article:hover h3,
+.omb-best-marquee-card article:focus-within h3 {
+  color: #8f633f;
+}
+html[data-theme="dark"] .omb-best-marquee-card article:hover h3,
+html[data-theme="dark"] .omb-best-marquee-card article:focus-within h3 {
+  color: #e6c18e;
+}
+
+@media (max-width: 767px) {
+  .omb-account-copy h2 { font-size: clamp(28px, 9vw, 38px) !important; }
+  .omb-account-copy > p { font-size: 14px !important; }
+  .omb-rewards-copy h2 { font-size: clamp(32px, 10vw, 46px) !important; }
+}
+
+/* V6 order workflow — action-driven states */
+.omb-order-timeline {
+  display: grid;
+  grid-template-columns: auto 1fr auto 1fr auto 1fr auto;
+  align-items: start;
+  gap: 10px;
+  width: 100%;
+}
+.omb-order-step {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  min-width: 92px;
+  color: rgba(54, 42, 34, .42);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+.omb-order-step-dot {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(116, 95, 73, .22);
+  border-radius: 999px;
+  background: var(--omb-surface, #fbf7f0);
+  color: rgba(54, 42, 34, .45);
+}
+.omb-order-step.is-active,
+.omb-order-step.is-done { color: #5f4b39; }
+.omb-order-step.is-active .omb-order-step-dot {
+  border-color: rgba(151, 121, 90, .72);
+  box-shadow: 0 0 0 5px rgba(199, 171, 136, .14);
+  color: #6c533d;
+}
+.omb-order-step.is-done .omb-order-step-dot {
+  background: #d9bf99;
+  border-color: #d9bf99;
+  color: #17120f;
+}
+.omb-order-step-line {
+  height: 1px;
+  margin-top: 15px;
+  background: rgba(116, 95, 73, .18);
+}
+.omb-order-step-line.is-done { background: rgba(151, 121, 90, .68); }
+.omb-order-timeline-terminal {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+.omb-order-timeline-terminal .omb-order-timeline-dot {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+}
+.omb-order-timeline-terminal.is-negative { color: #8b3e3e; }
+.omb-order-status.is-assigned_to_driver { border-color: rgba(151,121,90,.4); color: #745f49; }
+.omb-order-status.is-rejected { border-color: rgba(139,62,62,.45); color: #8b3e3e; }
+html[data-theme="dark"] .omb-order-step { color: rgba(245, 237, 226, .38); }
+html[data-theme="dark"] .omb-order-step.is-active,
+html[data-theme="dark"] .omb-order-step.is-done { color: #ead9c2; }
+html[data-theme="dark"] .omb-order-step-dot { background: #0b0a09; border-color: rgba(213,190,160,.22); color: rgba(245,237,226,.42); }
+html[data-theme="dark"] .omb-order-step.is-active .omb-order-step-dot { border-color: rgba(213,190,160,.72); color: #ead9c2; box-shadow: 0 0 0 5px rgba(213,190,160,.08); }
+html[data-theme="dark"] .omb-order-step.is-done .omb-order-step-dot { background: #d5bea0; border-color: #d5bea0; color: #090807; }
+html[data-theme="dark"] .omb-order-step-line { background: rgba(213,190,160,.14); }
+html[data-theme="dark"] .omb-order-step-line.is-done { background: rgba(213,190,160,.5); }
+html[data-theme="dark"] .omb-order-status.is-assigned_to_driver { color:#d5bea0 !important; border-color:rgba(213,190,160,.30) !important; }
+html[data-theme="dark"] .omb-order-status.is-rejected { color:#e2a5a5 !important; border-color:rgba(226,165,165,.32) !important; }
+@media (max-width: 760px) {
+  .omb-order-timeline {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .omb-order-step {
+    grid-template-columns: 30px 1fr;
+    justify-items: start;
+    align-items: center;
+    min-width: 0;
+    text-align: start;
+  }
+  .omb-order-step-line {
+    width: 1px;
+    height: 18px;
+    margin: -2px 0 -2px 14px;
+  }
+}
+
+/* V6 order-return workflow status accents */
+.omb-order-status.is-return_requested,
+.omb-order-status.is-return_approved,
+.omb-order-status.is-return_assigned,
+.omb-order-status.is-return_in_transit,
+.omb-order-status.is-returned {
+  color: #745f49;
+  border-color: rgba(116,95,73,.36);
+}
+.omb-order-status.is-returned { background: rgba(116,95,73,.10); }
+html[data-theme="dark"] .omb-order-status.is-return_requested,
+html[data-theme="dark"] .omb-order-status.is-return_approved,
+html[data-theme="dark"] .omb-order-status.is-return_assigned,
+html[data-theme="dark"] .omb-order-status.is-return_in_transit,
+html[data-theme="dark"] .omb-order-status.is-returned {
+  color: #d5bea0 !important;
+  border-color: rgba(213,190,160,.30) !important;
+}

@@ -1,0 +1,42 @@
+OH MY BABY - PRODUCT VARIANTS & INVENTORY PATCH (V6)
+===================================================
+
+What this patch adds
+--------------------
+1) Admin dashboard now has a dedicated Products & Inventory tile.
+2) Product creation remains a guided wizard:
+   - Clothing & Fashion OR Baby World
+   - category / product type
+   - color + required real image per color
+   - global size presets + custom "other" size
+   - stock matrix for every Color x Size combination
+   - price, description, placements, review
+3) Size presets expanded:
+   - Newborn: NB through 24-36M
+   - Kids: 2Y-16Y plus XS/S/M/L/XL Kids
+   - Shoes: EU 16-39
+4) Red was added to standard color presets.
+5) Product images upload to /public/uploads/products instead of being stored as huge browser base64 blobs.
+6) Products and inventory are now persisted in Laravel database (catalog_products).
+7) The first time Admin opens /admin/products after migration, the existing browser catalog is automatically imported into the database if the server catalog is empty.
+8) Public storefront syncs active catalog/inventory from the server and refreshes it every 60 seconds.
+9) Checkout no longer trusts browser stock/price when a server catalog product exists:
+   - server validates product, color, size and quantity
+   - server uses the stored price
+   - stock is reserved immediately when order is submitted
+10) If Admin rejects a pending order, its reserved stock is restored automatically.
+11) When a returned order reaches "returned to store", its stock is restored automatically.
+12) Product page already disables sold-out sizes/colors and disables + when available quantity is reached.
+
+Install
+-------
+Copy patch contents over website, then restart with START_TEST_WINDOWS.bat.
+The launcher runs php artisan migrate --force automatically.
+
+Quick test
+----------
+A) Admin -> /admin/products -> add or edit a product.
+B) Create Red + White, add e.g. 4Y/5Y, set Red 4Y=1 and White 4Y=8.
+C) As customer select Red + 4Y. The + button must stop at 1.
+D) Submit the order. Red + 4Y becomes 0 / sold out after catalog refresh.
+E) Reject the pending order from Admin OR complete a return to store: Red + 4Y returns to 1.

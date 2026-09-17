@@ -1,0 +1,42 @@
+OH MY BABY — V6 MULTI ADMIN / TEAM MANAGEMENT
+2026-09-16
+
+What this patch adds:
+- Multiple Admin accounts are supported as separate users with role=admin.
+- A second demo Admin is seeded for testing:
+  admin2@ohmybaby.local / OMB-Admin2-2026!
+- Owner page: /owner/team
+  * Create Admin accounts.
+  * Create Delivery accounts.
+  * Suspend/reactivate Admin, Delivery, or Customer accounts.
+  * See account-management audit activity.
+- Admin page: /admin/team
+  * Create Delivery accounts.
+  * Suspend/reactivate Delivery or Customer accounts.
+  * Cannot manage Owner or another Admin.
+- Suspended accounts are blocked from login and protected routes.
+- Last login is recorded.
+- Every staff account should use its own email/password so order_events can identify who acted on an order.
+
+INSTALL:
+1) Copy this patch over the V6 website folder and Replace files.
+2) Close the old Laravel/Vite windows.
+3) Run START_TEST_WINDOWS.bat again.
+   It runs migrations and seeds the second Admin automatically.
+
+If you do not want to restart terminals, run manually from website:
+  php artisan migrate --force
+  php artisan db:seed --class=DemoAccountsSeeder --force
+  php artisan optimize:clear
+Then refresh the browser.
+
+TEST:
+1) Login Owner: owner@ohmybaby.local / OMB-Owner-2026!
+2) Open /owner/team and confirm two Admins are visible.
+3) Create a third Admin from the form if desired.
+4) Suspend Admin 2, log out, and confirm Admin 2 cannot sign in.
+5) Reactivate Admin 2 and confirm login works again.
+6) Login Admin 1 and open /admin/team. It should manage Delivery/Customer only, not Admin accounts.
+
+NOTE:
+This uses suspension/archiving behavior rather than hard-deleting users, so old orders and audit history stay intact.

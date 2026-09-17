@@ -1,0 +1,57 @@
+OH MY BABY — PRACTICAL TEST GUIDE
+
+WHY THE PREVIOUS DOWNLOAD LOOKED UNCHANGED
+The React/CSS source files were modified, but public/build still contained the older compiled frontend and public/hot pointed to an old Vite port. If Laravel served that old bundle, the page looked almost exactly like the old version.
+
+FASTEST WAY TO SEE THE NEW VISUALS
+1. Double-click START_TEST_WINDOWS.bat.
+2. Keep both command windows open (Vite + Laravel).
+3. Open http://127.0.0.1:8000.
+4. Hard refresh once with Ctrl+Shift+R.
+
+VISUAL CHECKLIST
+- Main hero: no baby photo; black background; existing WELCOME TO / OH MY BABY text remains.
+- Add a product: a confirmation appears immediately under the header saying it is in the cart but the order is not submitted yet, with checkout CTA. It must work in Light and Dark.
+- Header should keep one stable height while scrolling (no compact-size jump/flicker).
+- Clicking New arrivals / Best sellers etc. should land with the full section heading visible below the sticky header.
+- Best sellers: continuous 10-card loop, moving opposite the top promo ticker.
+- Lower large surfaces: neutral espresso/oat/black palette; the old purple membership card was removed in this revision.
+- Product prices: USD plus NEW SYP display when exchange data/fallback is available.
+
+DEMO ACCOUNTS
+Owner
+  owner@ohmybaby.local
+  OMB-Owner-2026!
+
+Admin
+  admin@ohmybaby.local
+  OMB-Admin-2026!
+
+Delivery
+  delivery@ohmybaby.local
+  OMB-Delivery-2026!
+
+Customer
+  member@ohmybaby.local
+  OMB-Member-2026!
+
+END-TO-END ORDER TEST
+1. CUSTOMER: sign in with the Customer account from the site's Sign in section.
+2. Add any product to cart. The under-header confirmation proves Add-to-cart works but does NOT mean an order was sent.
+3. Go to checkout, enter phone/address, and submit. The status should be Pending review.
+4. Sign out. Sign in as Owner or Admin. Open /admin/orders. The same order must appear.
+5. In /admin/orders, accept it and assign the Delivery demo user.
+6. Sign out. Sign in as Delivery. Open /delivery. The assigned order must appear with full customer/order details.
+7. Click Start delivery, then Mark delivered.
+8. Sign back in as Customer and open /account. The order should now show Delivered.
+9. Sign in as Owner and open /admin/operations. A commission record should exist after delivery. Standard non-offer order = $0.50. Decoration order = $2.50. Normal $0.50 commission is excluded when an offer item is present.
+10. Real Sham Cash payout remains disabled until the real API key/company wallet/recipient wallet are configured.
+
+ROLE BEHAVIOUR
+- Owner: full admin + orders + operations/commission transfer.
+- Admin: product/order management + driver assignment. Cannot initiate commission payout.
+- Delivery: only assigned delivery workflow.
+- Customer: own orders/rewards/account and checkout.
+
+PRODUCTION BUILD
+Once the dev test is accepted, double-click BUILD_VISUALS_WINDOWS.bat. This rebuilds public/build so the new visuals also work without keeping Vite open.

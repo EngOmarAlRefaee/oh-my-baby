@@ -1,0 +1,39 @@
+OH MY BABY — VISUAL FIX V2 — 2026-09-12
+
+This build contains the second visual correction requested after live testing:
+
+1) Best Sellers
+   - 10 unique products in a true seamless infinite loop.
+   - Two identical sequences remove the empty gap, including at browser zoom.
+   - Motion direction is opposite the top promo ticker.
+
+2) Offer popup (BABY10)
+   - Restored to the original bottom-left position.
+   - Same position in Light and Dark mode.
+   - It no longer jumps under the header.
+
+3) Header on scroll
+   - Only the brand/logo row becomes smaller after scrolling.
+   - The navigation row under it stays at its original 54px height.
+   - The top promo ticker stays at 44px.
+   - Scroll thresholds use hysteresis to prevent flicker.
+
+4) Light ambient motion
+   - Added moving micro-particles / tiny stars in Light mode.
+   - Dark mode star field remains intact.
+
+5) Palette
+   - Light: off-white + beige + warm dark ink.
+   - Dark: black + beige + warm off-white text.
+   - Removed the pink/green feeling from common UI accents.
+
+6) Rewards section
+   - Completely simplified and redesigned.
+   - Removed oversized decorative OMB text and circles.
+   - Clear 3-step explanation + one progress card.
+
+Files changed:
+- resources/js/components/header.jsx
+- resources/js/components/BestSellers.jsx
+- resources/js/components/RewardsSection.jsx
+- resources/css/app.css

@@ -1,0 +1,27 @@
+OH MY BABY — V6 ADMIN CONTROL CENTER
+
+Admin login redirects automatically to /admin.
+
+Main admin dashboard now has 5 responsibility cards:
+1) Accounts & team -> /admin/team
+2) Orders & operations -> /admin/orders
+3) Requests to owner -> /admin/owner-requests
+4) Statistics & monitoring -> dashboard statistics section
+5) Browse store as customer -> /
+
+When an authenticated Admin is browsing the storefront, an Admin-only "لوحة التحكم" button appears in the header and returns to /admin without logging out.
+
+Owner requests are real database records. Owner can review them at /owner/requests.
+
+Basic analytics added:
+- Store visits today (unique browser sessions)
+- Page views today
+- Login events today/month
+- Delivered orders
+- Direct returns at the door
+- Post-delivery return requests
+
+IMPORTANT AFTER COPYING THIS PATCH:
+Run: php artisan migrate --force
+Then: php artisan optimize:clear
+If Vite is running, Ctrl+Shift+R is enough for frontend. Restart START_TEST_WINDOWS.bat if you prefer.

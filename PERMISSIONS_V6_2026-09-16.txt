@@ -1,0 +1,57 @@
+OH MY BABY - V6 GRANULAR PERMISSIONS PATCH
+
+What this patch does
+--------------------
+1) Primary Admin
+- Automatically owns every operational Admin permission.
+- Owner-only powers are NOT in the Admin permission catalog.
+
+2) Creating accounts from Accounts & Team
+- Can create Admin, Delivery and Customer accounts when the creator has the matching permission.
+- Admin/Delivery creation shows grouped permission checkboxes.
+- "Select all" is available.
+- Required view permissions are added automatically.
+- Customer accounts do not receive administrative permissions.
+
+3) Editing existing accounts
+- "Edit account & permissions" allows name/email/phone/password updates and permission changes.
+- A lower Admin can never grant a permission that the Admin does not own.
+- Primary Admin cannot be demoted/edited by lower Admins.
+- Owner can choose which Admin is the Primary Admin.
+
+4) Real backend protection
+- Permissions protect routes, not only buttons.
+- Restricted Admins cannot open protected URLs manually.
+- Admin dashboard only shows cards/links that the signed-in Admin can access.
+
+5) Product permission separation
+- Create product and Edit product are now different backend actions.
+- POST /api/admin/catalog = create permission.
+- PUT /api/admin/catalog/{id} = edit permission.
+- Archive remains its own permission.
+
+6) Existing accounts after migration
+- Existing Delivery accounts keep the standard delivery permission set so current delivery workflow keeps working.
+- Existing secondary Admin accounts start with no delegated permissions and should be configured by Primary Admin/Owner.
+- Primary Admin always receives all operational permissions automatically.
+
+Install
+-------
+Copy the contents of this patch directly over the website folder, then run:
+
+    .\APPLY_PERMISSIONS.bat
+
+The batch file runs the new migration, clears Laravel caches and shows migration status.
+Do NOT run migrate:fresh and do NOT delete database.sqlite.
+
+Quick test
+----------
+A) Login as Primary Admin -> /admin/team
+B) Create a second Admin and select only:
+   - View orders
+   - Accept orders
+C) Login with that second Admin.
+   - /admin shows only the relevant assigned sections + Store.
+   - /admin/orders opens.
+   - /admin/products must return 403.
+D) Return to Primary Admin and edit the second Admin permissions; changes take effect on the next request/refresh.
