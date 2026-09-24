@@ -63,6 +63,13 @@ export function normalizeProduct(product) {
     slug: product.slug || `product-${product.id}`,
     status: product.status || "active",
     sections: Array.isArray(product.sections) ? product.sections : [],
+    // Every catalog product must belong to summer, winter, or both.
+    // Legacy products that predate the season flags are treated as both so
+    // the new filters never hide the existing catalog by accident.
+    isSummer: Boolean(product.isSummer) || (!Boolean(product.isSummer) && !Boolean(product.isWinter)),
+    isWinter: Boolean(product.isWinter) || (!Boolean(product.isSummer) && !Boolean(product.isWinter)),
+    bestSellerPinned: Boolean(product.bestSellerPinned),
+    bestSellerOrder: Number(product.bestSellerOrder || 0),
     offerPrice: product.offerPrice === "" || product.offerPrice == null ? null : Number(product.offerPrice),
     price: Number(product.price || 0),
     colors,

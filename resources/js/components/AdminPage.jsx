@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   categoryTree,
   colorPresets,
@@ -14,11 +14,11 @@ import {
   normalizeProduct,
   saveProducts,
 } from "../data/productStore";
-import { apiFetch } from "../lib/api";
 
 const NEW_STEPS = [
   "world",
   "category",
+  "season",
   "colors",
   "sizes",
   "inventory",
@@ -30,6 +30,7 @@ const NEW_STEPS = [
 
 const EDITABLE_STEPS = [
   "category",
+  "season",
   "colors",
   "sizes",
   "inventory",
@@ -42,13 +43,14 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-async function uploadProductImage(file) {
-  const body = new FormData();
-  body.append("image", file);
-  const data = await apiFetch("/api/admin/catalog/image", { method: "POST", body });
-  return data.url;
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
-
 
 function emptyProduct() {
   return {
@@ -62,6 +64,11 @@ function emptyProduct() {
     categoryEn: "",
     subcategory: "all",
     audience: "all",
+    // Default new products to both seasons. Admin can keep both or turn one off.
+    isSummer: true,
+    isWinter: true,
+    bestSellerPinned: false,
+    bestSellerOrder: 0,
     colors: [],
     sizes: [],
     inventory: {},
@@ -150,36 +157,6 @@ export default function AdminPage({ locale = "ar" }) {
   const [customSize, setCustomSize] = useState("");
   const [customColor, setCustomColor] = useState({ ar: "", en: "", hex: "#b9a79d" });
   const [message, setMessage] = useState("");
-  const [catalogReady, setCatalogReady] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function loadCatalog() {
-      try {
-        let data = await apiFetch("/api/admin/catalog");
-        if (!data.products?.length) {
-          data = await apiFetch("/api/admin/catalog/bootstrap", {
-            method: "POST",
-            body: JSON.stringify({ products: getProducts() }),
-          });
-        }
-        if (!cancelled && Array.isArray(data.products)) {
-          saveProducts(data.products);
-          setProducts(data.products.map(normalizeProduct));
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setMessage(isAr
-            ? "تعذر مزامنة كتالوج السيرفر حالياً. لا تحفظي تعديلات قبل التأكد من تشغيل الـmigration الجديدة."
-            : "Could not sync the server catalog. Run the new migration before saving changes.");
-        }
-      } finally {
-        if (!cancelled) setCatalogReady(true);
-      }
-    }
-    loadCatalog();
-    return () => { cancelled = true; };
-  }, []);
 
   const editSteps = useMemo(
     () => [...EDITABLE_STEPS.filter((step) => editParts.includes(step)), "review"],
@@ -211,6 +188,7 @@ export default function AdminPage({ locale = "ar" }) {
   const stepTitles = {
     world: isAr ? "اختاري العالم" : "Choose a world",
     category: isAr ? "القسم ونوع القطعة" : "Category & product type",
+    season: isAr ? "الموسم" : "Season",
     colors: isAr ? "الألوان والصور" : "Colors & images",
     sizes: isAr ? "القياسات" : "Sizes",
     inventory: isAr ? "الكميات المتوفرة" : "Inventory",
@@ -263,21 +241,24 @@ export default function AdminPage({ locale = "ar" }) {
     setMessage("");
   }
 
-  async function remove(productId) {
+  function remove(productId) {
     const ok = window.confirm(
       isAr
-        ? "إخفاء هذا المنتج من المتجر؟ رح يضل محفوظ بالسجلات والطلبات القديمة."
-        : "Archive this product? It will stay in historical orders.",
+        ? "هل أنتِ متأكدة من حذف هذا المنتج؟ لا يمكن التراجع عن الحذف داخل هذه النسخة."
+        : "Delete this product? This cannot be undone in this prototype.",
     );
     if (!ok) return;
-    try {
-      await apiFetch(`/api/admin/catalog/${encodeURIComponent(productId)}`, { method: "DELETE" });
-      const next = products.filter((product) => String(product.id) !== String(productId));
-      saveProducts(next);
-      setProducts(next);
-    } catch (error) {
-      setMessage(error.message || (isAr ? "تعذر أرشفة المنتج." : "Could not archive product."));
+    const next = products.filter((product) => String(product.id) !== String(productId));
+    const result = saveProducts(next);
+    if (!result?.ok) {
+      setMessage(
+        isAr
+          ? "تعذر حفظ الحذف داخل المتصفح. جربي تقليل حجم الصور أو أعيدي المحاولة."
+          : "The delete could not be saved in browser storage. Try reducing image size or retrying.",
+      );
+      return;
     }
+    setProducts(next);
   }
 
   function selectWorld(worldId) {
@@ -438,54 +419,42 @@ export default function AdminPage({ locale = "ar" }) {
 
   async function setMainImage(file) {
     if (!file) return;
-    try {
-      const image = await uploadProductImage(file);
-      update({ image });
-    } catch (error) {
-      setMessage(isAr ? "تعذر رفع الصورة. تأكدي أن حجمها أقل من 8MB." : "Image upload failed. Keep images under 8MB.");
-    }
+    const image = await fileToDataUrl(file);
+    update({ image });
   }
 
   async function setColorImage(colorId, file) {
     if (!file) return;
-    try {
-      const image = await uploadProductImage(file);
-      setForm((current) => ({
-        ...current,
-        colors: current.colors.map((color) =>
-          color.id === colorId
-            ? { ...color, image, images: Array.from(new Set([image, ...(color.images || [])])) }
-            : color,
-        ),
-        image: current.image || image,
-      }));
-      setMessage("");
-    } catch (error) {
-      setMessage(isAr ? "تعذر رفع صورة اللون. تأكدي أن حجمها أقل من 8MB." : "Color image upload failed. Keep images under 8MB.");
-    }
+    const image = await fileToDataUrl(file);
+    setForm((current) => ({
+      ...current,
+      colors: current.colors.map((color) =>
+        color.id === colorId
+          ? { ...color, image, images: Array.from(new Set([image, ...(color.images || [])])) }
+          : color,
+      ),
+      image: current.image || image,
+    }));
+    setMessage("");
   }
 
   async function addColorGalleryImages(colorId, files) {
     const list = Array.from(files || []);
     if (!list.length) return;
-    try {
-      const images = await Promise.all(list.map(uploadProductImage));
-      setForm((current) => ({
-        ...current,
-        colors: current.colors.map((color) =>
-          color.id === colorId
-            ? {
-                ...color,
-                image: color.image || images[0],
-                images: Array.from(new Set([...(color.images || []), ...images])),
-              }
-            : color,
-        ),
-        image: current.image || images[0],
-      }));
-    } catch (error) {
-      setMessage(isAr ? "تعذر رفع إحدى الصور الإضافية." : "One or more gallery images could not be uploaded.");
-    }
+    const images = await Promise.all(list.map(fileToDataUrl));
+    setForm((current) => ({
+      ...current,
+      colors: current.colors.map((color) =>
+        color.id === colorId
+          ? {
+              ...color,
+              image: color.image || images[0],
+              images: Array.from(new Set([...(color.images || []), ...images])),
+            }
+          : color,
+      ),
+      image: current.image || images[0],
+    }));
   }
 
   function updateStock(colorId, size, value) {
@@ -515,6 +484,8 @@ export default function AdminPage({ locale = "ar" }) {
       return {
         ...current,
         sections,
+        bestSellerPinned:
+          placementId === "best-sellers" ? !selected : Boolean(current.bestSellerPinned),
         offerPrice: placementId === "offers" && selected ? null : current.offerPrice,
       };
     });
@@ -566,7 +537,7 @@ export default function AdminPage({ locale = "ar" }) {
     setStepIndex((current) => Math.max(0, current - 1));
   }
 
-  async function save() {
+  function save() {
     const normalized = normalizeProduct({
       ...form,
       slug:
@@ -575,25 +546,24 @@ export default function AdminPage({ locale = "ar" }) {
       price: Number(form.price || 0),
       offerPrice: form.sections.includes("offers") ? Number(form.offerPrice || 0) : null,
     });
-    try {
-      const endpoint = editing
-        ? `/api/admin/catalog/${encodeURIComponent(editing.id)}`
-        : "/api/admin/catalog";
-      const data = await apiFetch(endpoint, {
-        method: editing ? "PUT" : "POST",
-        body: JSON.stringify({ product: normalized }),
-      });
-      const saved = normalizeProduct(data.product || normalized);
-      const next = editing
-        ? products.map((product) => (String(product.id) === String(saved.id) ? saved : product))
-        : [saved, ...products.filter((product) => String(product.id) !== String(saved.id))];
-      saveProducts(next);
-      setProducts(next);
-      cancel();
-    } catch (error) {
-      const validation = error.data?.errors ? Object.values(error.data.errors).flat()[0] : null;
-      setMessage(validation || error.message || (isAr ? "تعذر حفظ المنتج." : "Could not save product."));
+    const next = editing
+      ? products.map((product) => (String(product.id) === String(normalized.id) ? normalized : product))
+      : [normalized, ...products];
+    const result = saveProducts(next);
+    if (!result?.ok) {
+      setMessage(
+        result?.reason === "storage-full"
+          ? isAr
+            ? "حجم الصور كبير على التخزين المؤقت الحالي. خففي حجم الصور أو عددها بهذه النسخة التجريبية ثم أعيدي الحفظ."
+            : "The uploaded images exceed this prototype's browser storage. Reduce image size/count and save again."
+          : isAr
+            ? "تعذر حفظ المنتج حالياً. البيانات ما زالت موجودة بالنموذج."
+            : "The product could not be saved. Your form data is still here.",
+      );
+      return;
     }
+    setProducts(next);
+    cancel();
   }
 
   function selectedCategoryLabel(product) {
@@ -627,7 +597,7 @@ export default function AdminPage({ locale = "ar" }) {
             <div className="flex flex-wrap gap-2">
               <a href="/admin/orders" className="omb-btn omb-btn-secondary">{isAr ? "إدارة الطلبات" : "Orders"}</a>
               <a href="/admin/operations" className="omb-btn omb-btn-secondary">{isAr ? "عمليات الأونر" : "Owner operations"}</a>
-              <button type="button" onClick={startNew} disabled={!catalogReady} className="omb-btn omb-btn-primary disabled:opacity-40">
+              <button type="button" onClick={startNew} className="omb-btn omb-btn-primary">
                 + {isAr ? "إضافة جديد" : "Add new"}
               </button>
             </div>
@@ -668,7 +638,7 @@ export default function AdminPage({ locale = "ar" }) {
                     onClick={() => remove(product.id)}
                     className="border border-aubergine/25 px-4 py-2 text-xs font-black text-aubergine"
                   >
-                    {isAr ? "أرشفة" : "Archive"}
+                    {isAr ? "حذف" : "Delete"}
                   </button>
                 </div>
               </article>
@@ -836,6 +806,28 @@ export default function AdminPage({ locale = "ar" }) {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {currentStep === "season" && (
+            <div>
+              <h2 className="text-2xl font-black">{stepTitles.season}</h2>
+              <p className="mt-2 text-sm leading-7 text-espresso/55">
+                {isAr
+                  ? "اختاري صيفي أو شتوي أو الاثنين معاً. هذا الخيار مستقل تماماً عن القياسات والألوان والمخزون."
+                  : "Choose Summer, Winter, or both. This is independent from sizes, colors and inventory."}
+              </p>
+              <div className="mt-7 grid gap-4 sm:grid-cols-2">
+                <button type="button" onClick={() => update({ isSummer: form.isSummer && !form.isWinter ? true : !form.isSummer })} className={`border p-6 text-start ${form.isSummer ? "border-aubergine bg-aubergine text-milk" : "border-espresso/12 bg-milk text-espresso"}`}>
+                  <span className="block text-lg font-black">{isAr ? "صيفي" : "Summer"}</span>
+                  <span className="mt-2 block text-sm opacity-70">{form.isSummer ? (isAr ? "مفعّل" : "Enabled") : (isAr ? "غير مفعّل" : "Disabled")}</span>
+                </button>
+                <button type="button" onClick={() => update({ isWinter: form.isWinter && !form.isSummer ? true : !form.isWinter })} className={`border p-6 text-start ${form.isWinter ? "border-aubergine bg-aubergine text-milk" : "border-espresso/12 bg-milk text-espresso"}`}>
+                  <span className="block text-lg font-black">{isAr ? "شتوي" : "Winter"}</span>
+                  <span className="mt-2 block text-sm opacity-70">{form.isWinter ? (isAr ? "مفعّل" : "Enabled") : (isAr ? "غير مفعّل" : "Disabled")}</span>
+                </button>
+              </div>
+              <p className="mt-4 text-xs font-semibold text-espresso/50">{isAr ? "لا يمكن ترك الموسمين فارغين: اختاري صيفي أو شتوي أو الاثنين معاً." : "At least one season is required: Summer, Winter, or both."}</p>
             </div>
           )}
 
@@ -1100,6 +1092,25 @@ export default function AdminPage({ locale = "ar" }) {
                     <input type="number" min="0" step="0.01" value={form.offerPrice ?? ""} onChange={(e) => update({ offerPrice: e.target.value })} className="h-14 w-full bg-transparent px-2 text-xl font-black outline-none" />
                   </div>
                 </label>
+              )}
+              {form.sections.includes("best-sellers") && (
+                <div className="mt-6 grid gap-3 border border-espresso/10 bg-milk p-4 sm:grid-cols-[1fr_170px] sm:items-end">
+                  <label className="flex items-center gap-3 text-sm font-black">
+                    <input type="checkbox" checked={Boolean(form.bestSellerPinned)} onChange={(event) => update({ bestSellerPinned: event.target.checked })} />
+                    <span>{isAr ? "تثبيت هذا المنتج يدوياً ضمن الأكثر طلباً فوق الاختيار التلقائي حسب المبيعات." : "Pin this item manually in Best Sellers ahead of the automatic sales ranking."}</span>
+                  </label>
+                  <label className="text-xs font-black">
+                    {isAr ? "ترتيب التثبيت" : "Pin order"}
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={form.bestSellerOrder ?? 0}
+                      onChange={(event) => update({ bestSellerOrder: Number(event.target.value || 0) })}
+                      className="mt-2 h-11 w-full border border-espresso/15 bg-transparent px-3 font-black outline-none"
+                    />
+                  </label>
+                </div>
               )}
             </div>
           )}

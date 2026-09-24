@@ -4,10 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\User;
-use App\Services\CatalogInventoryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class AdminOrderController extends Controller
 {
@@ -38,7 +36,7 @@ class AdminOrderController extends Controller
         return $this->freshOrder($order);
     }
 
-    public function reject(Request $request, Order $order, CatalogInventoryService $inventoryService): JsonResponse
+    public function reject(Request $request, Order $order): JsonResponse
     {
         if ($order->status !== 'pending_review') {
             return response()->json(['message' => 'Only orders under review can be rejected.'], 409);
@@ -46,15 +44,12 @@ class AdminOrderController extends Controller
 
         $data = $request->validate(['admin_note' => ['nullable', 'string', 'max:3000']]);
 
-        DB::transaction(function () use ($order, $data, $request, $inventoryService) {
-            $order->update([
-                'status' => 'rejected',
-                'admin_note' => $data['admin_note'] ?? $order->admin_note,
-                'rejected_at' => now(),
-            ]);
-            $inventoryService->restoreOrder($order);
-            $this->event($order, $request, 'order_rejected', $data['admin_note'] ?? null);
-        });
+        $order->update([
+            'status' => 'rejected',
+            'admin_note' => $data['admin_note'] ?? $order->admin_note,
+            'rejected_at' => now(),
+        ]);
+        $this->event($order, $request, 'order_rejected', $data['admin_note'] ?? null);
 
         return $this->freshOrder($order);
     }

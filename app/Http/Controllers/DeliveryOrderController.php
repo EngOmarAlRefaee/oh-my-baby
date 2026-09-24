@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\RewardCoupon;
 use App\Services\CommissionService;
-use App\Services\CatalogInventoryService;
 use App\Services\RewardService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -135,8 +134,7 @@ class DeliveryOrderController extends Controller
         Request $request,
         Order $order,
         RewardService $rewards,
-        CommissionService $commissions,
-        CatalogInventoryService $inventoryService
+        CommissionService $commissions
     ): JsonResponse {
         $this->ensureCanOperateReturn($request, $order);
 
@@ -162,7 +160,6 @@ class DeliveryOrderController extends Controller
             $rewards->syncForUser($order->user);
         }
         $commissions->reverseForReturnedOrder($order, 'Order returned to store');
-        $inventoryService->restoreOrder($order);
 
         return $this->freshOrder($order);
     }

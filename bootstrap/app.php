@@ -5,8 +5,8 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use App\Http\Middleware\EnsureRole;
-use App\Http\Middleware\EnsureAccountActive;
 use App\Http\Middleware\EnsurePermission;
+use App\Http\Middleware\EnsureAccountActive;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -17,8 +17,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'role' => EnsureRole::class,
-            'active' => EnsureAccountActive::class,
             'permission' => EnsurePermission::class,
+            'active' => EnsureAccountActive::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

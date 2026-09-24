@@ -2,20 +2,18 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\CatalogProduct;
 use App\Models\Order;
 use App\Models\RewardCoupon;
-use App\Services\CatalogInventoryService;
+use App\Models\PromoCode;
 use App\Services\ExchangeRateService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 
 class OrderController extends Controller
 {
-    public function store(Request $request, ExchangeRateService $rates, CatalogInventoryService $inventoryService): JsonResponse
+    public function store(Request $request, ExchangeRateService $rates): JsonResponse
     {
         $user = $request->user();
         abort_unless($user, 401);
@@ -40,98 +38,45 @@ class OrderController extends Controller
             'items.*.sections' => ['nullable', 'array'],
         ]);
 
+        $subtotal = collect($data['items'])->sum(fn ($item) => round((float) $item['unit_price_usd'] * (int) $item['quantity'], 2));
+        $rewardCoupon = null;
+        $promoCoupon = null;
+        $discount = 0.0;
+        $couponCode = ! empty($data['coupon_code']) ? strtoupper(trim($data['coupon_code'])) : null;
+
+        if ($couponCode) {
+            $rewardCoupon = RewardCoupon::where('user_id', $user->id)
+                ->where('code', $couponCode)
+                ->where('status', 'available')
+                ->first();
+
+            if ($rewardCoupon) {
+                $discount = round($subtotal * ((float) $rewardCoupon->discount_percent / 100), 2);
+            } else {
+                $promoCoupon = PromoCode::query()
+                    ->where('code', $couponCode)
+                    ->where('active', true)
+                    ->where(fn ($query) => $query->whereNull('starts_at')->orWhere('starts_at', '<=', now()))
+                    ->where(fn ($query) => $query->whereNull('ends_at')->orWhere('ends_at', '>=', now()))
+                    ->first();
+
+                if (! $promoCoupon) {
+                    return response()->json(['message' => 'Coupon is invalid or inactive.'], 422);
+                }
+
+                if ($promoCoupon->first_order_only && $user->orders()->whereNotIn('status', ['rejected', 'cancelled'])->exists()) {
+                    return response()->json(['message' => 'This promo code is available for the first order only.'], 422);
+                }
+
+                $discount = round($subtotal * ((float) $promoCoupon->discount_percent / 100), 2);
+            }
+        }
+
+        $total = max(0, round($subtotal - $discount, 2));
         $rateSnapshot = $rates->current();
+        $totalSyp = $rates->convertUsdToSyp($total, $rateSnapshot);
 
-        $order = DB::transaction(function () use ($data, $user, $rateSnapshot, $rates, $inventoryService) {
-            $trustedItems = [];
-
-            foreach ($data['items'] as $item) {
-                $catalogProduct = CatalogProduct::where('external_id', (string) $item['product_id'])
-                    ->lockForUpdate()
-                    ->first();
-
-                if ($catalogProduct) {
-                    if ($catalogProduct->status !== 'active') {
-                        throw ValidationException::withMessages(['items' => ["المنتج {$catalogProduct->name_ar} غير متاح حالياً."]]);
-                    }
-
-                    $colorId = ($item['color_id'] ?? null) ?: 'default';
-                    $size = ($item['size'] ?? null) ?: 'default';
-                    $colors = $catalogProduct->colors ?: [];
-                    $sizes = $catalogProduct->sizes ?: [];
-
-                    if (count($colors) && ! collect($colors)->contains(fn ($color) => ($color['id'] ?? null) === $colorId)) {
-                        throw ValidationException::withMessages(['items' => ["اللون المختار غير متاح للمنتج {$catalogProduct->name_ar}."]]);
-                    }
-                    if (count($sizes) && ! in_array($size, $sizes, true)) {
-                        throw ValidationException::withMessages(['items' => ["القياس المختار غير متاح للمنتج {$catalogProduct->name_ar}."]]);
-                    }
-
-                    $reservation = $inventoryService->reserve($catalogProduct, $colorId, $size, (int) $item['quantity']);
-                    $selectedColor = collect($colors)->first(fn ($color) => ($color['id'] ?? null) === $colorId);
-                    $sections = $catalogProduct->sections ?: [];
-                    $unitPrice = $catalogProduct->offer_price_usd !== null
-                        ? (float) $catalogProduct->offer_price_usd
-                        : (float) $catalogProduct->price_usd;
-
-                    $trustedItems[] = [
-                        'product_external_id' => (string) $catalogProduct->external_id,
-                        'catalog_product_id' => $catalogProduct->id,
-                        'name_ar' => $catalogProduct->name_ar,
-                        'name_en' => $catalogProduct->name_en,
-                        'image' => $selectedColor['image'] ?? $catalogProduct->image,
-                        'color_id' => $colorId === 'default' ? null : $colorId,
-                        'color_name' => $selectedColor['nameAr'] ?? $selectedColor['nameEn'] ?? null,
-                        'size' => $size === 'default' ? null : $size,
-                        'inventory_key' => $reservation['key'],
-                        'quantity' => (int) $item['quantity'],
-                        'unit_price_usd' => $unitPrice,
-                        'category' => $catalogProduct->category,
-                        'sections' => $sections,
-                        'is_offer' => in_array('offers', $sections, true),
-                    ];
-                    continue;
-                }
-
-                // Compatibility path for legacy/demo products that have not yet been synced by an admin.
-                $sections = $item['sections'] ?? [];
-                $trustedItems[] = [
-                    'product_external_id' => (string) $item['product_id'],
-                    'catalog_product_id' => null,
-                    'name_ar' => $item['name_ar'] ?? null,
-                    'name_en' => $item['name_en'] ?? null,
-                    'image' => $item['image'] ?? null,
-                    'color_id' => $item['color_id'] ?? null,
-                    'color_name' => $item['color_name'] ?? null,
-                    'size' => $item['size'] ?? null,
-                    'inventory_key' => null,
-                    'quantity' => (int) $item['quantity'],
-                    'unit_price_usd' => (float) $item['unit_price_usd'],
-                    'category' => $item['category'] ?? null,
-                    'sections' => $sections,
-                    'is_offer' => in_array('offers', $sections, true),
-                ];
-            }
-
-            $subtotal = collect($trustedItems)->sum(fn ($item) => round((float) $item['unit_price_usd'] * (int) $item['quantity'], 2));
-            $coupon = null;
-            $discount = 0.0;
-
-            if (! empty($data['coupon_code'])) {
-                $coupon = RewardCoupon::where('user_id', $user->id)
-                    ->where('code', $data['coupon_code'])
-                    ->where('status', 'available')
-                    ->lockForUpdate()
-                    ->first();
-                if (! $coupon) {
-                    throw ValidationException::withMessages(['coupon_code' => ['Coupon is invalid or already used.']]);
-                }
-                $discount = round($subtotal * ((float) $coupon->discount_percent / 100), 2);
-            }
-
-            $total = max(0, round($subtotal - $discount, 2));
-            $totalSyp = $rates->convertUsdToSyp($total, $rateSnapshot);
-
+        $order = DB::transaction(function () use ($data, $user, $subtotal, $discount, $total, $rateSnapshot, $totalSyp, $rewardCoupon, $promoCoupon) {
             $order = Order::create([
                 'reference' => 'OMB-'.now()->format('ymd').'-'.strtoupper(Str::random(6)),
                 'user_id' => $user->id,
@@ -146,18 +91,30 @@ class OrderController extends Controller
                 'exchange_rate' => $rateSnapshot['usd_to_syp'],
                 'total_syp' => $totalSyp,
                 'exchange_source' => $rateSnapshot['source'] ?? null,
-                'coupon_code' => $coupon?->code,
+                'coupon_code' => $rewardCoupon?->code ?? $promoCoupon?->code,
             ]);
 
-            foreach ($trustedItems as $item) {
+            foreach ($data['items'] as $item) {
+                $sections = $item['sections'] ?? [];
                 $order->items()->create([
-                    ...$item,
+                    'product_external_id' => (string) $item['product_id'],
+                    'name_ar' => $item['name_ar'] ?? null,
+                    'name_en' => $item['name_en'] ?? null,
+                    'image' => $item['image'] ?? null,
+                    'color_id' => $item['color_id'] ?? null,
+                    'color_name' => $item['color_name'] ?? null,
+                    'size' => $item['size'] ?? null,
+                    'quantity' => (int) $item['quantity'],
+                    'unit_price_usd' => (float) $item['unit_price_usd'],
                     'line_total_usd' => round((float) $item['unit_price_usd'] * (int) $item['quantity'], 2),
+                    'category' => $item['category'] ?? null,
+                    'sections' => $sections,
+                    'is_offer' => in_array('offers', $sections, true),
                 ]);
             }
 
-            if ($coupon) {
-                $coupon->update(['status' => 'used', 'used_on_order_id' => $order->id, 'used_at' => now()]);
+            if ($rewardCoupon) {
+                $rewardCoupon->update(['status' => 'used', 'used_on_order_id' => $order->id, 'used_at' => now()]);
             }
 
             $order->events()->create([

@@ -16,9 +16,9 @@ export default function RewardsSection({ locale = "ar" }) {
 
   const steps = isAr
     ? [
-        ["01", "اطلب", "كل طلب مكتمل ينحسب تلقائياً بحسابك."],
-        ["02", "اقترب", "شوف تقدمك بوضوح بدون نقاط أو تفاصيل معقدة."],
-        ["03", "استفد", "لما توصل للمستوى المطلوب بتنفتح مكافأتك."],
+        ["01", "اطلب", "كل طلب مكتمل بيقرّبك خطوة من مكافأتك."],
+        ["02", "تابع", "شوف تقدمك ببساطة وبدون تعقيد."],
+        ["03", "استفد", "لما توصل للمستوى المطلوب، بتفتح مكافأتك."],
       ]
     : [
         ["01", "Order", "Every completed order is counted automatically."],
@@ -64,6 +64,10 @@ export default function RewardsSection({ locale = "ar" }) {
   }, [member.rewards]);
 
   const isCustomer = member.user?.role === "customer" && member.rewards;
+  const availableRewards = isCustomer
+    ? (member.rewards?.coupons || []).filter((coupon) => coupon?.status === "available")
+    : [];
+  const rewardUnlocked = availableRewards.length > 0;
 
   return (
     <section className="omb-rewards-section py-20 sm:py-28" dir={isAr ? "rtl" : "ltr"}>
@@ -78,7 +82,7 @@ export default function RewardsSection({ locale = "ar" }) {
 
               <h2>
                 {isAr ? (
-                  <>اطلب. اقترب.<br />وخد مكافأتك.</>
+                  <>كل طلب بيقرّبك<br />من مكافأة أحلى.</>
                 ) : (
                   <>Order. Progress.<br />Unlock your reward.</>
                 )}
@@ -86,7 +90,7 @@ export default function RewardsSection({ locale = "ar" }) {
 
               <p className="omb-rewards-intro">
                 {isAr
-                  ? "هذا القسم ظاهر حتى للزائر ليعرف فائدة إنشاء الحساب. بعد تسجيل الدخول يتحول الجزء المقابل تلقائياً لتقدمك الحقيقي ومكافآتك الفعلية."
+                  ? "أنشئ حسابك وخلي كل طلب محسوب. بعد تسجيل الدخول بيظهر تقدمك الحقيقي ومكافآتك الفعلية بشكل واضح وبسيط."
                   : "Visitors can see how the program works. After sign-in, the panel automatically switches to your real progress and unlocked rewards."}
               </p>
 
@@ -105,7 +109,7 @@ export default function RewardsSection({ locale = "ar" }) {
               <a href={isCustomer ? "/account" : "/#account"} className="omb-rewards-cta">
                 {isCustomer
                   ? (isAr ? "افتح حسابي ومكافآتي" : "Open my account & rewards")
-                  : (isAr ? "أنشئ حساب وابدأ من أول طلب" : "Create an account and start")}
+                  : (isAr ? "أنشئ حسابك وابدأ" : "Create an account and start")}
                 <span aria-hidden="true">↗</span>
               </a>
             </div>
@@ -118,7 +122,7 @@ export default function RewardsSection({ locale = "ar" }) {
                     <strong>
                       {isCustomer
                         ? (isAr ? `مرحباً ${member.user.name}` : `Welcome ${member.user.name}`)
-                        : (isAr ? "برنامج المكافآت" : "Rewards program")}
+                        : (isAr ? "مكافآتك معنا" : "Rewards program")}
                     </strong>
                   </div>
                   <span className="omb-rewards-level-mark">{isCustomer ? "✓" : "+"}</span>
@@ -127,34 +131,67 @@ export default function RewardsSection({ locale = "ar" }) {
                 {isCustomer ? (
                   <>
                     <div className="omb-rewards-level-copy">
-                      <span>{isAr ? "طلباتك المكتملة" : "Delivered orders"}</span>
-                      <h3>{progress.delivered}</h3>
-                    </div>
-                    <div className="omb-rewards-progress-row">
-                      <strong>
+                      <span>{isAr ? "تقدمك نحو المستوى التالي" : "Progress to your next level"}</span>
+                      <h3>
                         {progress.next
-                          ? (isAr ? `${progress.remaining} طلب للمكافأة التالية` : `${progress.remaining} orders to next reward`)
-                          : (isAr ? "وصلت لكل المستويات الحالية" : "All current levels reached")}
-                      </strong>
-                      <span>{Math.round(progress.percent)}%</span>
+                          ? (isAr
+                              ? `الطلب ${progress.delivered} من أصل ${progress.next}`
+                              : `Order ${progress.delivered} of ${progress.next}`)
+                          : (isAr ? `${progress.delivered} طلب مكتمل` : `${progress.delivered} completed orders`)}
+                      </h3>
                     </div>
-                    <div className="omb-rewards-progress">
-                      <span style={{ width: `${progress.percent}%` }} />
-                    </div>
-                    <div className="omb-rewards-next">
-                      <span>{isAr ? "المكافآت المفتوحة" : "Unlocked rewards"}</span>
-                      <strong>{member.rewards?.coupons?.length || 0}</strong>
-                    </div>
+
+                    {progress.next ? (
+                      <>
+                        <div className="omb-rewards-progress-row">
+                          <strong>
+                            {isAr
+                              ? `أنت حالياً عند الطلب رقم ${progress.delivered} من أصل ${progress.next}`
+                              : `You are currently on order ${progress.delivered} of ${progress.next}`}
+                          </strong>
+                          <span>
+                            {isAr
+                              ? `باقي ${progress.remaining}`
+                              : `${progress.remaining} remaining`}
+                          </span>
+                        </div>
+                        <div className="omb-rewards-progress" aria-hidden="true">
+                          <span style={{ width: `${progress.percent}%` }} />
+                        </div>
+                      </>
+                    ) : null}
+
+                    {rewardUnlocked ? (
+                      <div className="omb-rewards-next omb-rewards-prize-ready">
+                        <span>{isAr ? "وصلت لمرحلة مكافأة" : "Reward milestone reached"}</span>
+                        <strong>{isAr ? "لديك جائزة 🎁" : "You have a reward 🎁"}</strong>
+                      </div>
+                    ) : (
+                      <div className="omb-rewards-next">
+                        <span>{isAr ? "الجائزة تبقى مفاجأة" : "The reward stays a surprise"}</span>
+                        <strong>
+                          {progress.next
+                            ? (isAr
+                                ? `أكمل ${progress.remaining} ${progress.remaining === 1 ? "طلب" : "طلبات"} لتحصل على جائزتك وتنتقل للمستوى التالي.`
+                                : `Complete ${progress.remaining} more ${progress.remaining === 1 ? "order" : "orders"} to unlock your reward and move to the next level.`)
+                            : (isAr ? "أنجزت جميع المستويات الحالية." : "You completed all current levels.")}
+                        </strong>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <>
                     <div className="omb-rewards-level-copy">
-                      <span>{isAr ? "ابدأ من أول طلب" : "Start with your first order"}</span>
-                      <h3>{isAr ? "حسابك يحفظ تقدمك" : "Your account saves progress"}</h3>
+                      <span>{isAr ? "أول مكافأة" : "First level"}</span>
+                      <h3>{isAr ? "5 طلبات" : "5 orders"}</h3>
                     </div>
                     <div className="omb-rewards-next">
-                      <span>{isAr ? "أمثلة المستويات" : "Example milestones"}</span>
-                      <strong>{isAr ? "5 طلبات → خصم 5% · 10 طلبات → خصم 10%" : "5 orders → 5% off · 10 orders → 10% off"}</strong>
+                      <span>{isAr ? "تقدم حقيقي بدون أرقام وهمية" : "Real progress, no fake numbers"}</span>
+                      <strong>
+                        {isAr
+                          ? "بعد تسجيل الدخول، منشوف تقدمك الحقيقي، وكل طلب مكتمل بيقرّبك من المكافأة الجاية."
+                          : "After sign-in, you'll see your current order number out of 5, and your progress updates automatically after each completed order."}
+                      </strong>
                     </div>
                   </>
                 )}
@@ -164,7 +201,7 @@ export default function RewardsSection({ locale = "ar" }) {
                   ? (isAr ? "جاري التحقق من الحساب..." : "Checking account...")
                   : isCustomer
                     ? (isAr ? "هذه أرقام حسابك الحقيقية وليست مثالاً توضيحياً." : "These are your real account numbers, not a demo.")
-                    : (isAr ? "الزائر يرى شرح البرنامج فقط، بدون تقدم وهمي." : "Visitors see the program explanation only—no fake progress.")}
+                    : (isAr ? "سجّل دخولك لتشوف تقدمك الحقيقي ومكافآتك." : "Visitors see the program explanation only—no fake progress.")}
               </p>
             </div>
           </div>

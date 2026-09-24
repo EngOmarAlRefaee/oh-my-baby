@@ -108,16 +108,15 @@ export const placementOptions = [
   { id: "best-sellers", ar: "الأكثر طلباً", en: "Best sellers" },
 ];
 
-export const babySizePresets = ["NB", "0-1M", "0-3M", "3-6M", "6-9M", "9-12M", "12-18M", "18-24M", "24-36M"];
-export const kidsSizePresets = [...Array.from({ length: 15 }, (_, index) => `${index + 2}Y`), "XS Kids", "S Kids", "M Kids", "L Kids", "XL Kids"];
-export const shoeSizePresets = Array.from({ length: 24 }, (_, index) => String(index + 16));
+export const babySizePresets = ["0-3M", "3-6M", "6-9M", "9-12M", "12-18M", "18-24M"];
+export const kidsSizePresets = Array.from({ length: 15 }, (_, index) => `${index + 2}Y`);
+export const shoeSizePresets = Array.from({ length: 20 }, (_, index) => String(index + 18));
 
 export const colorPresets = [
   { id: "cream", ar: "سكري", en: "Cream", hex: "#e9e1d3" },
   { id: "white", ar: "أبيض", en: "White", hex: "#f7f5ef" },
   { id: "sand", ar: "رملي", en: "Sand", hex: "#c8b69d" },
   { id: "pink", ar: "وردي", en: "Pink", hex: "#e7c3c7" },
-  { id: "red", ar: "أحمر", en: "Red", hex: "#b83232" },
   { id: "blue", ar: "أزرق", en: "Blue", hex: "#8da8c6" },
   { id: "navy", ar: "كحلي", en: "Navy", hex: "#1f2a3d" },
   { id: "black", ar: "أسود", en: "Black", hex: "#161616" },

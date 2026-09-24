@@ -64,6 +64,32 @@ function SubcategoryNav({ locale, categorySlug, active = "all" }) {
   );
 }
 
+function SeasonNav({ locale, value, onChange }) {
+  const isAr = locale === "ar";
+  const items = [
+    { id: "all", ar: "الكل", en: "All" },
+    { id: "summer", ar: "صيفي", en: "Summer" },
+    { id: "winter", ar: "شتوي", en: "Winter" },
+  ];
+
+  return (
+    <nav className="omb-season-nav mb-4 border-y border-espresso/10 bg-oat/20" aria-label={isAr ? "فلترة حسب الموسم" : "Filter by season"}>
+      <div className="flex min-w-max items-center justify-center gap-2 overflow-x-auto py-3">
+        {items.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => onChange(item.id)}
+            className={`min-w-24 px-5 py-2.5 text-sm font-black transition ${value === item.id ? "bg-aubergine text-milk" : "text-espresso/65 hover:text-aubergine"}`}
+          >
+            {isAr ? item.ar : item.en}
+          </button>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
 function Filters({ locale, products, state, setState, categorySlug }) {
   const isAr = locale === "ar";
   const [open, setOpen] = useState(false);
@@ -151,7 +177,7 @@ function Filters({ locale, products, state, setState, categorySlug }) {
               <input value={state.minPrice} onChange={(event) => set("minPrice", event.target.value)} inputMode="decimal" placeholder={isAr ? "من" : "Min"} className="border border-espresso/12 bg-transparent px-3 py-2 text-sm outline-none" />
               <input value={state.maxPrice} onChange={(event) => set("maxPrice", event.target.value)} inputMode="decimal" placeholder={isAr ? "إلى" : "Max"} className="border border-espresso/12 bg-transparent px-3 py-2 text-sm outline-none" />
             </div>
-            <button type="button" onClick={() => setState({ query: "", audience: "all", size: "", color: "", minPrice: "", maxPrice: "", sort: "featured" })} className="mt-3 text-xs font-black text-aubergine underline">
+            <button type="button" onClick={() => setState({ query: "", audience: "all", size: "", color: "", minPrice: "", maxPrice: "", sort: "featured", season: "all" })} className="mt-3 text-xs font-black text-aubergine underline">
               {isAr ? "مسح الفلاتر" : "Clear filters"}
             </button>
           </div>
@@ -563,7 +589,7 @@ export default function CatalogPage({ locale = "ar", path = "/" }) {
   const cleanPath = path.split("?")[0];
   const queryString = path.includes("?") ? new URLSearchParams(path.split("?")[1]) : new URLSearchParams();
   const initialQuery = queryString.get("q") || "";
-  const [filters, setFilters] = useState({ query: initialQuery, audience: "all", size: "", color: "", minPrice: "", maxPrice: "", sort: "featured" });
+  const [filters, setFilters] = useState({ query: initialQuery, audience: "all", size: "", color: "", minPrice: "", maxPrice: "", sort: "featured", season: "all" });
   const parts = cleanPath.replace(/^\//, "").split("/").filter(Boolean);
   const type = parts[0] || "";
   const slug = parts[1] || "";
@@ -635,6 +661,13 @@ export default function CatalogPage({ locale = "ar", path = "/" }) {
       const price = Number(product.offerPrice ?? product.price ?? 0);
       if (filters.minPrice && price < Number(filters.minPrice)) return false;
       if (filters.maxPrice && price > Number(filters.maxPrice)) return false;
+      // Legacy products without season metadata count as both until the admin
+      // explicitly classifies them. This guarantees every visible product is
+      // reachable from Summer, Winter, or both.
+      const isSummer = Boolean(product.isSummer) || (!product.isSummer && !product.isWinter);
+      const isWinter = Boolean(product.isWinter) || (!product.isSummer && !product.isWinter);
+      if (filters.season === "summer" && !isSummer) return false;
+      if (filters.season === "winter" && !isWinter) return false;
       return true;
     });
 
@@ -653,6 +686,7 @@ export default function CatalogPage({ locale = "ar", path = "/" }) {
 
     return (
       <PageShell locale={locale} eyebrow="OH MY BABY" title={title} description={isAr ? "ابحثي وفلّتي واختاري القطعة المناسبة بسهولة." : "Search, filter and find the right piece with ease."}>
+        {type === "category" && categoryMap[slug]?.world === "fashion" && <SeasonNav locale={locale} value={filters.season} onChange={(season) => setFilters((current) => ({ ...current, season }))} />}
         {type === "category" && categoryMap[slug]?.world === "fashion" && <SubcategoryNav locale={locale} categorySlug={slug} active={activeSubcategory} />}
         <Filters locale={locale} products={base} state={filters} setState={setFilters} categorySlug={slug} />
         {sorted.length ? (

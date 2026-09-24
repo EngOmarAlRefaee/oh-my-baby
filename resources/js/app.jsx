@@ -23,39 +23,16 @@ import AdminOrdersPage from "./components/AdminOrdersPage";
 import OwnerOperationsPage from "./components/OwnerOperationsPage";
 import OwnerDashboardPage from "./components/OwnerDashboardPage";
 import AdminDashboardPage from "./components/AdminDashboardPage";
-import TeamManagementPage from "./components/TeamManagementPage";
-import AdminOwnerRequestsPage from "./components/AdminOwnerRequestsPage";
-import OwnerRequestsPage from "./components/OwnerRequestsPage";
-import { apiFetch } from "./lib/api";
-import { saveProducts } from "./data/productStore";
+import MarketingPage from "./components/MarketingPage";
 
 function App() {
   const [locale, setLocale] = useState(() => { try { return window.localStorage.getItem("omb-locale") || "ar"; } catch { return "ar"; } });
   const [darkMode, setDarkMode] = useState(() => { try { const saved = window.localStorage.getItem("omb-theme"); if (saved === "dark" || saved === "light") return saved === "dark"; return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false; } catch { return false; } });
-  const [, setCatalogRevision] = useState(0);
   const isAr = locale === "ar";
   const pathname = window.location.pathname;
 
   useEffect(() => { document.documentElement.lang = locale; document.documentElement.dir = isAr ? "rtl" : "ltr"; try { window.localStorage.setItem("omb-locale", locale); } catch {} }, [locale, isAr]);
-  useEffect(() => {
-    let cancelled = false;
-    async function refreshCatalog() {
-      try {
-        const data = await apiFetch("/api/catalog");
-        if (!cancelled && Array.isArray(data.products) && data.products.length) {
-          saveProducts(data.products);
-          setCatalogRevision((value) => value + 1);
-        }
-      } catch {}
-    }
-    refreshCatalog();
-    const timer = window.setInterval(refreshCatalog, 60000);
-    return () => { cancelled = true; window.clearInterval(timer); };
-  }, []);
   useEffect(() => { const theme = darkMode ? "dark" : "light"; document.documentElement.dataset.theme = theme; try { window.localStorage.setItem("omb-theme", theme); } catch {} }, [darkMode]);
-  useEffect(() => {
-    apiFetch("/api/analytics/visit", { method: "POST", body: JSON.stringify({ path: `${window.location.pathname}${window.location.search}` }) }).catch(() => {});
-  }, [pathname]);
 
   useEffect(() => {
     if (pathname !== "/" || !window.location.hash) return undefined;
@@ -86,11 +63,8 @@ function App() {
 
   const shell = (children) => <div className="min-h-screen bg-milk text-espresso" dir={isAr ? "rtl" : "ltr"}><div aria-hidden="true" className="omb-dark-stars" />{children}</div>;
 
-  if (pathname.startsWith("/owner/team")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><TeamManagementPage locale={locale} /><Footer locale={locale} /></>);
-  if (pathname.startsWith("/owner/requests")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><OwnerRequestsPage locale={locale} /><Footer locale={locale} /></>);
-  if (pathname.startsWith("/admin/team")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><TeamManagementPage locale={locale} /><Footer locale={locale} /></>);
-  if (pathname.startsWith("/admin/owner-requests")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><AdminOwnerRequestsPage locale={locale} /><Footer locale={locale} /></>);
   if (pathname.startsWith("/owner")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><OwnerDashboardPage locale={locale} /><Footer locale={locale} /></>);
+  if (pathname.startsWith("/admin/marketing")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><MarketingPage locale={locale} /><Footer locale={locale} /></>);
   if (pathname.startsWith("/admin/operations")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><OwnerOperationsPage locale={locale} /><Footer locale={locale} /></>);
   if (pathname.startsWith("/admin/orders")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><AdminOrdersPage locale={locale} /><Footer locale={locale} /></>);
   if (pathname.startsWith("/admin/products")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><AdminPage locale={locale} /></>);

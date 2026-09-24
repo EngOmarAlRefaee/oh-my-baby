@@ -30,14 +30,6 @@ class DemoAccountsSeeder extends Seeder
                 'password' => env('OMB_DEMO_ADMIN_PASSWORD', 'OMB-Admin-2026!'),
             ],
             [
-                'name' => 'OH MY BABY Admin 2',
-                'email' => env('OMB_DEMO_ADMIN2_EMAIL', 'admin2@ohmybaby.local'),
-                'phone' => '+00000000005',
-                'role' => 'admin',
-                'password' => env('OMB_DEMO_ADMIN2_PASSWORD', 'OMB-Admin2-2026!'),
-                'account_status' => 'active',
-            ],
-            [
                 'name' => 'OH MY BABY Delivery',
                 'email' => env('OMB_DEMO_DELIVERY_EMAIL', 'delivery@ohmybaby.local'),
                 'phone' => '+00000000003',

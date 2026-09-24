@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\StaffActionLog;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -75,11 +74,7 @@ class GoogleAuthController extends Controller
                 throw new RuntimeException('Staff accounts cannot be converted into customer Google accounts.');
             }
 
-            if ($user && ($user->account_status ?? 'active') !== 'active') {
-                return redirect('/account?google=suspended');
-            }
-
-            $user ??= new User(['email' => $profile['email'], 'role' => 'customer', 'account_status' => 'active']);
+            $user ??= new User(['email' => $profile['email'], 'role' => 'customer']);
             $user->fill([
                 'name' => $profile['name'] ?? $profile['email'],
                 'google_id' => $profile['sub'],
@@ -90,14 +85,6 @@ class GoogleAuthController extends Controller
 
             Auth::login($user, true);
             $request->session()->regenerate();
-            $user->forceFill(['last_login_at' => now()])->save();
-            StaffActionLog::create([
-                'actor_user_id' => $user->id,
-                'target_user_id' => $user->id,
-                'action' => 'login',
-                'note' => 'Successful Google login.',
-                'meta' => ['role' => $user->role, 'provider' => 'google'],
-            ]);
             return redirect('/account?google=ok');
         } catch (\Throwable $error) {
             report($error);

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { getCartCount } from "../data/productStore";
 import CartAddedNotice from "./CartAddedNotice";
 import { categoryTree } from "../data/catalog";
+import { apiFetch } from "../lib/api";
 
 function menuForWorld(worldId) {
   return (
@@ -31,6 +32,7 @@ function SearchIcon() {
     </svg>
   );
 }
+
 function UserIcon() {
   return (
     <svg
@@ -45,6 +47,7 @@ function UserIcon() {
     </svg>
   );
 }
+
 function HeartIcon() {
   return (
     <svg
@@ -58,6 +61,7 @@ function HeartIcon() {
     </svg>
   );
 }
+
 function BagIcon() {
   return (
     <svg
@@ -72,6 +76,7 @@ function BagIcon() {
     </svg>
   );
 }
+
 function MenuIcon() {
   return (
     <svg
@@ -85,6 +90,7 @@ function MenuIcon() {
     </svg>
   );
 }
+
 function CloseIcon() {
   return (
     <svg
@@ -98,6 +104,7 @@ function CloseIcon() {
     </svg>
   );
 }
+
 function ThemeToggle({ darkMode, onToggle, label }) {
   return (
     <button
@@ -113,6 +120,7 @@ function ThemeToggle({ darkMode, onToggle, label }) {
     </button>
   );
 }
+
 function HeaderAction({ label, children, onClick, className = "", badge }) {
   return (
     <button
@@ -123,7 +131,7 @@ function HeaderAction({ label, children, onClick, className = "", badge }) {
     >
       <span className="relative z-10">{children}</span>
       {badge !== undefined && (
-        <span className="absolute -right-0.5 -top-0.5 z-20 flex h-4 min-w-4 items-center justify-center rounded-full bg-aubergine px-1 text-[9px] font-bold leading-none text-milk">
+        <span className="omb-header-badge absolute -top-0.5 z-20 flex h-4 min-w-4 items-center justify-center rounded-full bg-aubergine px-1 text-[9px] font-bold leading-none text-milk">
           {badge}
         </span>
       )}
@@ -152,6 +160,7 @@ const promoMessagesAr = [
   "خصم 10% لأول طلب — BABY10",
   "تغليف هدايا متوفر على مختاراتنا",
 ];
+
 const promoMessagesEn = [
   "Welcome to Oh My Baby",
   {
@@ -167,6 +176,7 @@ const promoMessagesEn = [
   "10% off your first order — BABY10",
   "Gift wrapping available on selected pieces",
 ];
+
 function PromoMessage({ message }) {
   if (typeof message === "string") return <span>{message}</span>;
   return (
@@ -192,11 +202,36 @@ export default function Header({
   const [query, setQuery] = useState("");
   const [copied, setCopied] = useState(false);
   const [offerVisible, setOfferVisible] = useState(false);
+  const [promo, setPromo] = useState({
+    code: "BABY10",
+    discount_percent: 10,
+    active: true,
+    first_order_only: true,
+  });
   const [compactHeader, setCompactHeader] = useState(false);
   const [cartCount, setCartCount] = useState(() => getCartCount());
-  const [sessionUser, setSessionUser] = useState(null);
+  const [authUser, setAuthUser] = useState(null);
   const headerRef = useRef(null);
-  const promoMessages = isAr ? promoMessagesAr : promoMessagesEn;
+
+  const dashboardHref =
+    authUser?.role === "owner"
+      ? "/owner"
+      : authUser?.role === "admin"
+        ? "/admin"
+        : null;
+
+  const promoMessages = useMemo(() => {
+    const base = (isAr ? promoMessagesAr : promoMessagesEn).filter(
+      (message) => typeof message !== "string" || !message.includes("BABY10"),
+    );
+    if (!promo?.active) return base;
+    const percent = Number(promo.discount_percent || 0);
+    const message = isAr
+      ? `خصم ${percent}%${promo.first_order_only ? " لأول طلب" : ""} — ${promo.code}`
+      : `${percent}% off${promo.first_order_only ? " your first order" : ""} — ${promo.code}`;
+    return [...base, message];
+  }, [isAr, promo]);
+
   const copy = useMemo(
     () => ({
       search: isAr ? "بحث" : "Search",
@@ -210,19 +245,45 @@ export default function Header({
 
   useEffect(() => {
     let active = true;
-    const syncSession = () => fetch("/auth/session", { headers: { Accept: "application/json" }, credentials: "same-origin" })
-      .then((response) => response.ok ? response.json() : null)
-      .then((data) => { if (active) setSessionUser(data?.user || null); })
-      .catch(() => { if (active) setSessionUser(null); });
-    syncSession();
-    window.addEventListener("omb:auth-updated", syncSession);
-    return () => { active = false; window.removeEventListener("omb:auth-updated", syncSession); };
+    apiFetch("/api/promo/current")
+      .then((payload) => {
+        if (active) setPromo(payload?.promo || null);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
+    let active = true;
+
+    const loadSession = () => {
+      apiFetch("/auth/session")
+        .then((payload) => {
+          if (!active) return;
+          setAuthUser(payload?.user || null);
+        })
+        .catch(() => {
+          if (!active) return;
+          setAuthUser(null);
+        });
+    };
+
+    loadSession();
+    window.addEventListener("omb:auth-updated", loadSession);
+
+    return () => {
+      active = false;
+      window.removeEventListener("omb:auth-updated", loadSession);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!promo?.active) return undefined;
     const timer = window.setTimeout(() => setOfferVisible(true), 11000);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [promo?.active]);
 
   useEffect(() => {
     let frameId = null;
@@ -304,6 +365,7 @@ export default function Header({
       observer?.disconnect();
     };
   }, [locale, darkMode, compactHeader]);
+
   useEffect(() => {
     let timer = null;
 
@@ -332,9 +394,10 @@ export default function Header({
     if (!value) return;
     window.location.href = `/search?q=${encodeURIComponent(value)}`;
   }
+
   async function copyCode() {
     try {
-      await navigator.clipboard.writeText("BABY10");
+      await navigator.clipboard.writeText(promo?.code || "BABY10");
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1800);
     } catch {
@@ -351,7 +414,9 @@ export default function Header({
     event.preventDefault();
     setMobileMenuOpen(false);
 
-    const headerHeight = Math.ceil(headerRef.current?.getBoundingClientRect().height || 0);
+    const headerHeight = Math.ceil(
+      headerRef.current?.getBoundingClientRect().height || 0,
+    );
 
     // Scroll to the first meaningful content inside the section, not to the
     // section box itself. Most homepage sections have generous top padding,
@@ -361,7 +426,8 @@ export default function Header({
       target.firstElementChild ||
       target;
 
-    const anchorTop = window.scrollY + anchorTarget.getBoundingClientRect().top;
+    const anchorTop =
+      window.scrollY + anchorTarget.getBoundingClientRect().top;
     const gapBelowHeader = window.innerWidth >= 1024 ? 12 : 8;
     const top = anchorTop - headerHeight - gapBelowHeader;
 
@@ -372,14 +438,17 @@ export default function Header({
   const menuLink = (href, text) => (
     <a
       href={href}
-      onClick={(event) => { setMobileMenuOpen(false); handleHomeAnchor(event, href); }}
+      onClick={(event) => {
+        setMobileMenuOpen(false);
+        handleHomeAnchor(event, href);
+      }}
       className="flex items-center border-b border-espresso/10 py-4 text-base font-bold"
     >
       {text}
     </a>
   );
 
-  const MegaMenu = ({ title, items, featuredHref }) => (
+  const MegaMenu = ({ title, items, featuredHref, comingSoon = false }) => (
     <div className="omb-mega-menu invisible absolute top-full z-[999] min-w-[500px] translate-y-2 border border-espresso/12 bg-milk p-7 opacity-0 shadow-[0_20px_50px_rgba(0,0,0,0.18)] transition-all duration-200 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 ltr:left-0 rtl:right-0">
       <div className="grid grid-cols-[1fr_220px] gap-8">
         <div>
@@ -387,22 +456,43 @@ export default function Header({
             {title}
           </p>
           <div className="flex flex-col gap-3">
-            {items.map((item) => (
-              <a
-                key={item.slug}
-                href={`/category/${item.slug}`}
-                className="whitespace-nowrap text-[15px] font-bold text-espresso transition-colors hover:text-aubergine"
-              >
-                {isAr ? item.ar : item.en}
-              </a>
-            ))}
+            {items.map((item) =>
+              comingSoon ? (
+                <div
+                  key={item.slug}
+                  className="omb-coming-soon-menu-item flex cursor-not-allowed items-center justify-between gap-4 py-1 text-[15px] font-bold text-espresso/55"
+                  aria-disabled="true"
+                >
+                  <span>{isAr ? item.ar : item.en}</span>
+                  <span className="rounded-full border border-aubergine/20 bg-aubergine/5 px-2 py-1 text-[9px] font-black text-aubergine">
+                    {isAr ? "قريباً" : "SOON"}
+                  </span>
+                </div>
+              ) : (
+                <a
+                  key={item.slug}
+                  href={`/category/${item.slug}`}
+                  className="whitespace-nowrap text-[15px] font-bold text-espresso transition-colors hover:text-aubergine"
+                >
+                  {isAr ? item.ar : item.en}
+                </a>
+              ),
+            )}
           </div>
-          <a
-            href={featuredHref}
-            className="omb-link mt-6 inline-block font-bold text-sm text-aubergine underline"
-          >
-            {isAr ? `عرض كل ${title}` : `View all ${title}`}
-          </a>
+          {comingSoon ? (
+            <span className="mt-6 inline-block text-sm font-bold text-aubergine/65">
+              {isAr
+                ? `أقسام ${title} قيد التجهيز`
+                : `${title} sections are coming soon`}
+            </span>
+          ) : (
+            <a
+              href={featuredHref}
+              className="omb-link mt-6 inline-block font-bold text-sm text-aubergine underline"
+            >
+              {isAr ? `عرض كل ${title}` : `View all ${title}`}
+            </a>
+          )}
         </div>
         <div className="bg-oat/40 p-5 border-s border-espresso/10 flex flex-col justify-between">
           <div>
@@ -414,17 +504,27 @@ export default function Header({
               {isAr ? "عالمهم الصغير" : "Their little world"}
             </h3>
             <p className="mt-1 text-xs leading-relaxed text-espresso/60">
-              {isAr
-                ? "اختاري الفئة المناسبة لطفلك."
-                : "Choose the right category."}
+              {comingSoon
+                ? isAr
+                  ? "عم نجهز هالأقسام، وصوتك بالاستفتاء بيساعدنا نقرر شو نطلق أولاً."
+                  : "We're preparing these sections. Your poll vote helps us decide what launches first."
+                : isAr
+                  ? "اختاري الفئة المناسبة لطفلك."
+                  : "Choose the right category."}
             </p>
           </div>
-          <a
-            href={featuredHref}
-            className="omb-btn omb-btn-primary mt-4 flex h-9 items-center justify-center text-xs px-3"
-          >
-            {isAr ? "اكتشف" : "Discover"}
-          </a>
+          {comingSoon ? (
+            <span className="omb-btn mt-4 flex h-9 cursor-not-allowed items-center justify-center border border-aubergine/15 bg-aubergine/5 px-3 text-xs font-black text-aubergine/65">
+              {isAr ? "قريباً" : "Coming soon"}
+            </span>
+          ) : (
+            <a
+              href={featuredHref}
+              className="omb-btn omb-btn-primary mt-4 flex h-9 items-center justify-center text-xs px-3"
+            >
+              {isAr ? "اكتشف" : "Discover"}
+            </a>
+          )}
         </div>
       </div>
     </div>
@@ -594,20 +694,25 @@ export default function Header({
                 <MegaMenu
                   title={isAr ? "عالم الطفل" : "Baby World"}
                   items={babyWorldMenu}
-                  featuredHref="/category/baby-world"
+                  featuredHref="/#baby-world"
+                  comingSoon
                 />
               </div>
 
               <a
                 href="/#featured-collection"
-                onClick={(event) => handleHomeAnchor(event, "/#featured-collection")}
+                onClick={(event) =>
+                  handleHomeAnchor(event, "/#featured-collection")
+                }
                 className="omb-nav-link flex h-full items-center text-[15px] font-bold"
               >
                 {isAr ? "العودة للمدرسة" : "Back to school"}
               </a>
               <a
                 href="/#newborn-essentials"
-                onClick={(event) => handleHomeAnchor(event, "/#newborn-essentials")}
+                onClick={(event) =>
+                  handleHomeAnchor(event, "/#newborn-essentials")
+                }
                 className="omb-nav-link flex h-full items-center text-[15px] font-bold"
               >
                 {isAr ? "حديثي الولادة" : "Newborn"}
@@ -619,6 +724,16 @@ export default function Header({
               >
                 {isAr ? "الأكثر طلباً" : "Best sellers"}
               </a>
+
+              {dashboardHref && (
+                <a
+                  href={dashboardHref}
+                  className="omb-nav-link flex h-full items-center text-[15px] font-black text-aubergine"
+                >
+                  {isAr ? "لوحة التحكم" : "Dashboard"}
+                </a>
+              )}
+
               <a
                 href="/#account"
                 onClick={(event) => handleHomeAnchor(event, "/#account")}
@@ -626,18 +741,11 @@ export default function Header({
               >
                 {isAr ? "تسجيل الدخول" : "Sign in"}
               </a>
-              {["admin", "owner"].includes(sessionUser?.role) && (
-                <a
-                  href={sessionUser.role === "owner" ? "/owner" : "/admin"}
-                  className="omb-nav-link flex h-full items-center text-[15px] font-black text-aubergine"
-                >
-                  {isAr ? "لوحة التحكم" : "Dashboard"}
-                </a>
-              )}
             </div>
           </div>
         </nav>
       </header>
+
       <CartAddedNotice locale={locale} />
 
       {searchOpen && (
@@ -713,7 +821,10 @@ export default function Header({
             </div>
             <div className="mt-3">
               {menuLink("/#home-hero", isAr ? "من نحن" : "About us")}
-              {menuLink("/#new-arrivals", isAr ? "وصل حديثاً" : "New arrivals")}
+              {menuLink(
+                "/#new-arrivals",
+                isAr ? "وصل حديثاً" : "New arrivals",
+              )}
               <details className="border-b border-espresso/10">
                 <summary className="cursor-pointer py-4 text-base font-bold">
                   {isAr ? "ملابس" : "Clothing"}
@@ -746,20 +857,25 @@ export default function Header({
                 <div className="grid gap-3 pb-5 ps-4">
                   <a
                     href="/#baby-world"
-                    onClick={(event) => { setMobileMenuOpen(false); handleHomeAnchor(event, "/#baby-world"); }}
+                    onClick={(event) => {
+                      setMobileMenuOpen(false);
+                      handleHomeAnchor(event, "/#baby-world");
+                    }}
                     className="text-sm font-black text-aubergine"
                   >
                     {isAr ? "عرض عالم الطفل" : "View Baby World"}
                   </a>
                   {babyWorldMenu.map((item) => (
-                    <a
+                    <div
                       key={item.slug}
-                      href={`/category/${item.slug}`}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className="text-sm font-medium text-espresso/65"
+                      className="flex cursor-not-allowed items-center justify-between gap-3 text-sm font-medium text-espresso/50"
+                      aria-disabled="true"
                     >
-                      {isAr ? item.ar : item.en}
-                    </a>
+                      <span>{isAr ? item.ar : item.en}</span>
+                      <span className="rounded-full border border-aubergine/20 px-2 py-0.5 text-[9px] font-black text-aubergine">
+                        {isAr ? "قريباً" : "SOON"}
+                      </span>
+                    </div>
                   ))}
                 </div>
               </details>
@@ -775,8 +891,15 @@ export default function Header({
                 "/#best-sellers",
                 isAr ? "الأكثر طلباً" : "Best sellers",
               )}
-              {["admin", "owner"].includes(sessionUser?.role) && menuLink(sessionUser.role === "owner" ? "/owner" : "/admin", isAr ? "لوحة التحكم" : "Dashboard")}
+
+              {dashboardHref &&
+                menuLink(
+                  dashboardHref,
+                  isAr ? "لوحة التحكم" : "Dashboard",
+                )}
+
               {menuLink("/#account", isAr ? "تسجيل الدخول" : "Sign in")}
+
               <div className="mt-6 flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-[0.12em]">
                   {darkMode ? "Dark" : "Light"}
@@ -792,7 +915,7 @@ export default function Header({
         </div>
       )}
 
-      {offerVisible && (
+      {offerVisible && promo?.active && (
         <aside
           dir={isAr ? "rtl" : "ltr"}
           className="omb-offer-nudge fixed bottom-5 left-4 sm:left-6 z-[80] w-[min(340px,calc(100vw-32px))] bg-milk p-5 shadow-[0_22px_60px_rgba(40,35,33,0.22)]"
@@ -800,26 +923,29 @@ export default function Header({
           <button
             type="button"
             onClick={() => setOfferVisible(false)}
-            className="absolute right-3 top-3 h-8 w-8"
+            className="omb-offer-close absolute top-3 h-8 w-8"
             aria-label={copy.close}
           >
             ×
           </button>
-          <p className="omb-eyebrow-label block text-aubergine/55">10% OFF</p>
+          <p className="omb-eyebrow-label block text-aubergine/55">
+            {Number(promo.discount_percent || 0)}% OFF
+          </p>
           <h3 className="mt-2 text-xl font-bold text-espresso">
             {isAr ? "هدية صغيرة إلك" : "A little gift for you"}
           </h3>
           <p className="mt-2 max-w-[260px] text-sm leading-6 text-espresso/58">
             {isAr
-              ? "استخدم الكود وخد 10% على طلبك الأول."
-              : "Use the code for 10% off your first order."}
+              ? `استخدم الكود وخد ${Number(promo.discount_percent || 0)}%${promo.first_order_only ? " على طلبك الأول" : ""}.`
+              : `Use the code for ${Number(promo.discount_percent || 0)}% off${promo.first_order_only ? " your first order" : ""}.`}
           </p>
           <button
             type="button"
             onClick={copyCode}
             className="mt-4 text-sm font-bold text-aubergine underline"
           >
-            <span className="font-serif tracking-[0.16em]">BABY10</span> —{" "}
+            <span className="font-serif tracking-[0.16em]">{promo.code}</span>{" "}
+            —{" "}
             {copied
               ? isAr
                 ? "تم النسخ"

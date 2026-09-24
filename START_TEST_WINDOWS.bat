@@ -4,7 +4,7 @@ cd /d "%~dp0"
 title OH MY BABY - Test launcher
 
 echo ==========================================================
-echo OH MY BABY - PRACTICAL TEST MODE - V6 + CONTROL CENTERS + SERVER CATALOG/VARIANT STOCK
+echo OH MY BABY - PRACTICAL TEST MODE - V6 + FINAL ORDER FLOW + RETURNS
 echo ==========================================================
 echo.
 
@@ -41,8 +41,7 @@ echo.
 echo ==========================================================
 echo DEMO LOGINS
 ECHO Owner    : owner@ohmybaby.local    / OMB-Owner-2026!
-ECHO Admin 1  : admin@ohmybaby.local    / OMB-Admin-2026!
-ECHO Admin 2  : admin2@ohmybaby.local   / OMB-Admin2-2026!
+ECHO Admin    : admin@ohmybaby.local    / OMB-Admin-2026!
 ECHO Delivery : delivery@ohmybaby.local / OMB-Delivery-2026!
 ECHO Customer : member@ohmybaby.local   / OMB-Member-2026!
 echo ==========================================================
@@ -51,11 +50,7 @@ echo IMPORTANT: keep BOTH opened command windows running while testing.
 echo The Vite window is what makes the new visual changes appear immediately.
 echo Role redirect: Owner -> /owner | Admin -> /admin | Delivery -> /delivery | Customer -> /account
 echo Order flow: review -> accept -> dispatch -> delivery -> delivered -> optional return workflow.
-echo Catalog: server-backed products + color/size stock + automatic stock reserve/restore.
-echo Admin/Owner can use /delivery as fallback if the assigned driver is unavailable.
-echo Owner dashboard: /owner ^| Admin dashboard: /admin
-echo Owner team page: /owner/team ^| Admin team page: /admin/team
-echo Admin -> Owner requests: /admin/owner-requests ^| Owner review: /owner/requests
+Admin/Owner can use /delivery as fallback if the assigned driver is unavailable.
 echo.
 pause
 exit /b 0

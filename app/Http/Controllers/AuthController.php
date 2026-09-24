@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\StaffActionLog;
 use App\Models\User;
-use App\Support\PermissionCatalog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
@@ -24,39 +24,22 @@ class AuthController extends Controller
 
     public function login(Request $request): JsonResponse
     {
-        $credentials = $request->validate([
-            'email' => ['required', 'email'],
+        $data = $request->validate([
+            'phone' => ['required', 'string', 'max:40'],
             'password' => ['required', 'string'],
+            'remember' => ['nullable', 'boolean'],
         ]);
 
-        if (! Auth::attempt($credentials, $request->boolean('remember'))) {
+        $user = User::where('phone', $this->normalizePhone($data['phone']))->first();
+
+        if (! $user || ! Hash::check($data['password'], $user->password)) {
             return response()->json([
-                'message' => 'Invalid credentials.',
+                'message' => 'رقم الهاتف أو كلمة المرور غير صحيحة.',
             ], 422);
         }
 
-        $user = $request->user();
-
-        if (($user->account_status ?? 'active') !== 'active') {
-            Auth::logout();
-            $request->session()->invalidate();
-            $request->session()->regenerateToken();
-
-            return response()->json([
-                'message' => 'This account is suspended. Contact the store owner.',
-                'code' => 'account_suspended',
-            ], 403);
-        }
-
+        Auth::login($user, $request->boolean('remember'));
         $request->session()->regenerate();
-        $user->forceFill(['last_login_at' => now()])->save();
-        StaffActionLog::create([
-            'actor_user_id' => $user->id,
-            'target_user_id' => $user->id,
-            'action' => 'login',
-            'note' => 'Successful password login.',
-            'meta' => ['role' => $user->role],
-        ]);
 
         return response()->json([
             'message' => 'Signed in.',
@@ -69,18 +52,44 @@ class AuthController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
-            'email' => ['required', 'email', 'max:180', 'unique:users,email'],
-            'phone' => ['required', 'string', 'max:40'],
+            'phone' => [
+                'required',
+                'string',
+                'max:40',
+                Rule::unique('users', 'phone'),
+            ],
+            'email' => [
+                'nullable',
+                'email',
+                'max:180',
+                Rule::unique('users', 'email'),
+            ],
             'password' => ['required', 'confirmed', Password::min(8)],
+            'marketing_opt_in' => ['nullable', 'boolean'],
+        ], [
+            'name.required' => 'الاسم مطلوب.',
+            'phone.required' => 'رقم الهاتف مطلوب.',
+            'phone.unique' => 'رقم الهاتف مستخدم من قبل.',
+            'email.email' => 'صيغة البريد الإلكتروني غير صحيحة.',
+            'email.unique' => 'البريد الإلكتروني مستخدم من قبل.',
+            'password.required' => 'كلمة المرور مطلوبة.',
+            'password.confirmed' => 'تأكيد كلمة المرور غير مطابق.',
         ]);
+
+        $phone = $this->normalizePhone($data['phone']);
+        $email = $data['email'] ?? null;
 
         $user = User::create([
             'name' => $data['name'],
-            'email' => $data['email'],
-            'phone' => $data['phone'] ?? null,
+            'email' => $email ?: $this->internalEmailForPhone($phone),
+            'phone' => $phone,
             'password' => $data['password'],
             'role' => 'customer',
         ]);
+
+        $user->forceFill([
+            'marketing_opt_in' => $request->boolean('marketing_opt_in'),
+        ])->save();
 
         Auth::login($user);
         $request->session()->regenerate();
@@ -101,6 +110,26 @@ class AuthController extends Controller
         return response()->json(['message' => 'Signed out.']);
     }
 
+    private function normalizePhone(string $phone): string
+    {
+        $phone = trim($phone);
+        $phone = str_replace([' ', '-', '(', ')'], '', $phone);
+
+        return $phone;
+    }
+
+    private function internalEmailForPhone(string $phone): string
+    {
+        $clean = preg_replace('/[^0-9a-zA-Z]/', '', $phone) ?: uniqid('customer', true);
+
+        return 'phone_' . $clean . '@ohmybaby.local';
+    }
+
+    private function isInternalPhoneEmail(?string $email): bool
+    {
+        return is_string($email) && str_ends_with($email, '@ohmybaby.local');
+    }
+
     private function dashboardForRole(string $role): string
     {
         return match ($role) {
@@ -116,15 +145,12 @@ class AuthController extends Controller
         return [
             'id' => $user->id,
             'name' => $user->name,
-            'email' => $user->email,
+            'email' => $this->isInternalPhoneEmail($user->email) ? null : $user->email,
             'phone' => $user->phone,
             'role' => $user->role,
-            'is_primary_admin' => (bool) $user->is_primary_admin,
-            'permissions' => is_array($user->permissions) ? $user->permissions : [],
-            'effective_permissions' => PermissionCatalog::effectiveFor($user),
-            'account_status' => $user->account_status ?? 'active',
             'avatar_url' => $user->avatar_url,
             'google_connected' => filled($user->google_id),
+            'marketing_opt_in' => (bool) ($user->marketing_opt_in ?? false),
         ];
     }
 }
