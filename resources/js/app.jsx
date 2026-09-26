@@ -24,6 +24,7 @@ import OwnerOperationsPage from "./components/OwnerOperationsPage";
 import OwnerDashboardPage from "./components/OwnerDashboardPage";
 import AdminDashboardPage from "./components/AdminDashboardPage";
 import MarketingPage from "./components/MarketingPage";
+import TeamManagementPage from "./components/TeamManagementPage";
 
 function App() {
   const [locale, setLocale] = useState(() => { try { return window.localStorage.getItem("omb-locale") || "ar"; } catch { return "ar"; } });
@@ -63,6 +64,7 @@ function App() {
 
   const shell = (children) => <div className="min-h-screen bg-milk text-espresso" dir={isAr ? "rtl" : "ltr"}><div aria-hidden="true" className="omb-dark-stars" />{children}</div>;
 
+  if (pathname.startsWith("/owner/team")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><TeamManagementPage locale={locale} /><Footer locale={locale} /></>);
   if (pathname.startsWith("/owner")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><OwnerDashboardPage locale={locale} /><Footer locale={locale} /></>);
   if (pathname.startsWith("/admin/marketing")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><MarketingPage locale={locale} /><Footer locale={locale} /></>);
   if (pathname.startsWith("/admin/operations")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><OwnerOperationsPage locale={locale} /><Footer locale={locale} /></>);

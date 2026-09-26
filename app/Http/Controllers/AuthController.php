@@ -25,16 +25,23 @@ class AuthController extends Controller
     public function login(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'phone' => ['required', 'string', 'max:40'],
+            'identifier' => ['nullable', 'string', 'max:180', 'required_without:phone'],
+            'phone' => ['nullable', 'string', 'max:40', 'required_without:identifier'],
             'password' => ['required', 'string'],
             'remember' => ['nullable', 'boolean'],
         ]);
 
-        $user = User::where('phone', $this->normalizePhone($data['phone']))->first();
+        $identifier = trim((string) ($data['identifier'] ?? $data['phone'] ?? ''));
+
+        if (filter_var($identifier, FILTER_VALIDATE_EMAIL)) {
+            $user = User::whereRaw('LOWER(email) = ?', [mb_strtolower($identifier)])->first();
+        } else {
+            $user = User::where('phone', $this->normalizePhone($identifier))->first();
+        }
 
         if (! $user || ! Hash::check($data['password'], $user->password)) {
             return response()->json([
-                'message' => 'رقم الهاتف أو كلمة المرور غير صحيحة.',
+                'message' => 'رقم الهاتف أو البريد الإلكتروني أو كلمة المرور غير صحيحة.',
             ], 422);
         }
 

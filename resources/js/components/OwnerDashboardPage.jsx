@@ -64,6 +64,7 @@ export default function OwnerDashboardPage({ locale = "ar" }) {
               <LinkCard href="/admin/operations" eyebrow="FINANCE" title={isAr ? "Sham Cash والعمولات" : "Sham Cash & commissions"} body={isAr ? "التحويلات والعمولات وحالتها المالية." : "Transfers, commissions and payment operations."} />
               <LinkCard href="/delivery" eyebrow="DELIVERY" title={isAr ? "التوصيل" : "Delivery"} body={isAr ? "راقب الطلبات المسندة للسائقين وحالتها." : "Monitor assigned deliveries and their status."} />
               <LinkCard href="/admin/marketing" eyebrow="MARKETING" title={isAr ? "العروض والتسويق" : "Marketing"} body={isAr ? "إدارة كود الحسم والمشتركين ونتائج الاستفتاءات." : "Manage promo codes, subscribers and poll results."} />
+              <LinkCard href="/owner/team" eyebrow="TEAM" title={isAr ? "الحسابات والصلاحيات" : "Accounts & permissions"} body={isAr ? "إنشاء وإدارة حسابات Admin وDelivery وCustomer وتحديد الصلاحيات." : "Create and manage Admin, Delivery and Customer accounts and permissions."} />
             </div>
 
             <div className="mt-8 grid gap-6 lg:grid-cols-[1.5fr_.75fr]">

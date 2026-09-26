@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import AuthPanel from "./auth/AuthPanel";
 
 export default function AccountSection({ locale = "ar" }) {
@@ -75,7 +76,7 @@ export default function AccountSection({ locale = "ar" }) {
         </div>
       </div>
 
-      {open && (
+      {open && typeof document !== "undefined" && createPortal(
         <div className="omb-auth-modal" role="dialog" aria-modal="true" aria-label={isAr ? "تسجيل الدخول أو إنشاء حساب" : "Sign in or create account"}>
           <button type="button" className="omb-auth-backdrop" aria-label={isAr ? "إغلاق" : "Close"} onClick={() => setOpen(false)} />
           <div className="omb-auth-dialog">
@@ -88,7 +89,8 @@ export default function AccountSection({ locale = "ar" }) {
             </div>
             <AuthPanel locale={locale} compact />
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </section>
   );

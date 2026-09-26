@@ -4,48 +4,51 @@ import { apiFetch } from "../lib/api";
 
 const POLL_CHOICES = {
   interested: {
-    ar: "مهتمين بهالقسم 🤍",
-    en: "Interested 🤍",
+    ar: "مهتم",
+    en: "Interested",
+    arHint: "حابب أشوف هالقسم بالموقع",
+    enHint: "I'd like to see this section on the site",
   },
   very_interested: {
-    ar: "كتير مهتمين وناطرينو ✨",
-    en: "Very interested — can't wait ✨",
+    ar: "مهتم جدًا",
+    en: "Very interested",
+    arHint: "هذا القسم مهم إلي وناطره",
+    enHint: "This section matters to me and I'm waiting for it",
   },
 };
+
+function normalizePollChoice(choice) {
+  if (choice === "yes") return "interested";
+  if (choice === "no") return "very_interested";
+  return choice || "";
+}
 
 function PollResults({ locale, results }) {
   const isAr = locale === "ar";
   if (!results) return null;
 
-  const interested = Number(results.interested || results.yes || 0);
-  const veryInterested = Number(results.very_interested || results.no || 0);
-  const total = Number(results.total || 0);
   const interestedPercent = Number(results.interested_percent ?? results.yes_percent ?? 0);
   const veryInterestedPercent = Number(results.very_interested_percent ?? results.no_percent ?? 0);
-
   const rows = [
-    [POLL_CHOICES.interested[isAr ? "ar" : "en"], interested, interestedPercent, "bg-aubergine"],
-    [POLL_CHOICES.very_interested[isAr ? "ar" : "en"], veryInterested, veryInterestedPercent, "bg-butter"],
+    { key: "interested", percent: interestedPercent },
+    { key: "very_interested", percent: veryInterestedPercent },
   ];
 
   return (
-    <div className="mt-6 border-t border-espresso/10 pt-5">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-black text-espresso/75">{isAr ? "نبض آراء الزباين" : "Customer interest"}</p>
-        <span className="rounded-full bg-espresso/5 px-3 py-1 text-xs font-bold text-espresso/45">
-          {isAr ? `${total} مشاركة` : `${total} votes`}
-        </span>
+    <div className="omb-poll-standard-results" aria-live="polite">
+      <div className="omb-poll-standard-results-head">
+        <strong>{isAr ? "نتائج الاستفتاء" : "Poll results"}</strong>
       </div>
 
-      <div className="mt-4 grid gap-4">
-        {rows.map(([label, value, percent, color]) => (
-          <div key={label}>
-            <div className="flex items-center justify-between gap-3 text-sm font-bold text-espresso/70">
-              <span>{label}</span>
-              <span>{percent}% · {value}</span>
+      <div className="omb-poll-standard-bars">
+        {rows.map((row) => (
+          <div key={row.key} className="omb-poll-standard-result-row">
+            <div className="omb-poll-standard-result-copy">
+              <span>{POLL_CHOICES[row.key][isAr ? "ar" : "en"]}</span>
+              <strong>{row.percent}%</strong>
             </div>
-            <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-espresso/10">
-              <div className={`h-full rounded-full ${color} transition-[width] duration-500`} style={{ width: `${percent}%` }} />
+            <div className="omb-poll-standard-track" aria-hidden="true">
+              <span style={{ width: `${row.percent}%` }} />
             </div>
           </div>
         ))}
@@ -56,32 +59,38 @@ function PollResults({ locale, results }) {
 
 function InterestPoll({ locale, section = "baby-world" }) {
   const isAr = locale === "ar";
-  const [state, setState] = useState({ busy: false, choice: "", message: "", results: null, showResults: false });
+  const [state, setState] = useState({
+    busy: false,
+    choice: "",
+    message: "",
+    results: null,
+    showResults: false,
+  });
 
   useEffect(() => {
     let active = true;
     apiFetch(`/api/interest-polls/results?section=${encodeURIComponent(section)}`)
       .then((payload) => {
         if (!active) return;
+        const savedChoice = normalizePollChoice(payload?.choice);
         setState((current) => ({
           ...current,
-          choice: payload?.choice || current.choice,
+          choice: savedChoice,
           results: payload?.results || null,
-          showResults: Boolean(payload?.choice) || current.showResults,
+          showResults: Boolean(savedChoice),
         }));
       })
       .catch(() => {});
     return () => { active = false; };
   }, [section]);
 
-  async function vote(choice) {
-    if (state.busy) return;
+  async function submitVote(choice) {
+    if (state.busy || !choice || choice === state.choice) return;
+
     setState((current) => ({
       ...current,
       busy: true,
-      choice,
-      showResults: true,
-      message: isAr ? "عم نسجل رأيك اللطيف..." : "Saving your vote...",
+      message: isAr ? "جاري تسجيل التصويت..." : "Saving your vote...",
     }));
 
     try {
@@ -94,18 +103,16 @@ function InterestPoll({ locale, section = "baby-world" }) {
         busy: false,
         choice,
         showResults: true,
-        message: isAr ? "وصلنا رأيك، شكراً من القلب 🤍" : "Your vote was saved. Thank you 🤍",
+        message: isAr ? "تم تسجيل تصويتك، شكرًا لمشاركتك." : "Your vote was recorded. Thank you.",
         results: payload?.results || current.results,
       }));
     } catch (error) {
       setState((current) => ({
         ...current,
         busy: false,
-        choice,
-        showResults: true,
         message: error?.status === 429
-          ? (isAr ? "اختيارك ظاهر هون، لحظة صغيرة قبل الحفظ مرة تانية." : "Your choice is shown here. Please wait a moment before saving again.")
-          : (isAr ? "اختيارك واضح هون، وإذا ما انحفظ جرّب مرة تانية." : "Your choice is shown here. Try again if it was not saved."),
+          ? (isAr ? "تمت محاولات كثيرة بسرعة. جرّب بعد لحظات." : "Too many attempts. Please try again shortly.")
+          : (isAr ? "تعذر تسجيل التصويت الآن. جرّب مرة ثانية." : "We couldn't save your vote. Please try again."),
       }));
     }
   }
@@ -113,42 +120,44 @@ function InterestPoll({ locale, section = "baby-world" }) {
   const choices = ["interested", "very_interested"];
 
   return (
-    <div className="omb-baby-poll mx-auto mt-10 max-w-4xl text-espresso" dir={isAr ? "rtl" : "ltr"}>
-      <div className="omb-baby-poll-inner">
-        <div className="omb-poll-kicker-row">
-          <span className="omb-poll-badge">{isAr ? "استفتاء سريع" : "Quick poll"}</span>
-          <span className="omb-soft-eyebrow">{isAr ? "رأيكم بيفرق معنا" : "Your opinion matters"}</span>
+    <section className="omb-poll-standard mx-auto mt-10 max-w-4xl" dir={isAr ? "rtl" : "ltr"}>
+      <div className="omb-poll-standard-head">
+        <span className="omb-poll-standard-label">{isAr ? "استفتاء" : "POLL"}</span>
+        <div>
+          <h3>{isAr ? "ما مدى اهتمامك بقسم عالم الطفل؟" : "How interested are you in Baby World?"}</h3>
+          <p>{isAr ? "اختر إجابة واحدة، وسيتم تسجيلها مباشرة." : "Choose one answer and it will be saved immediately."}</p>
         </div>
-        <h3>{isAr ? "صوّتوا لعالم الطفل… شو درجة حماسكم؟" : "Vote for Baby World… how excited are you?"}</h3>
-        <p>
-          {isAr
-            ? "اختاروا درجة حماسكم من الزرين تحت. الاستفتاء واحد فقط وبيساعدنا نعرف بأي قسم نبدأ."
-            : "Pick your excitement level below. One poll helps us choose what to launch first."}
-        </p>
+      </div>
 
-        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+      <div className="omb-poll-standard-form">
+        <fieldset disabled={state.busy} className="omb-poll-standard-options">
           {choices.map((choice) => {
-            const active = state.choice === choice || (choice === "interested" && state.choice === "yes") || (choice === "very_interested" && state.choice === "no");
+            const selected = state.choice === choice;
+            const copy = POLL_CHOICES[choice];
             return (
-              <button
-                key={choice}
-                type="button"
-                disabled={state.busy}
-                onClick={() => vote(choice)}
-                className={`omb-poll-choice ${active ? "is-active" : ""}`}
-              >
-                <span>{POLL_CHOICES[choice][isAr ? "ar" : "en"]}</span>
-                <small>{choice === "interested" ? (isAr ? "اضغط هون إذا حابين الفكرة" : "Tap if you like the idea") : (isAr ? "اضغط هون إذا ناطرينو بجد" : "Tap if you really want it")}</small>
-                <em>{active ? (isAr ? "تم الاختيار" : "Selected") : (isAr ? "اختيار" : "Choose")}</em>
-              </button>
+              <label key={choice} className={`omb-poll-standard-option ${selected ? "is-selected" : ""}`}>
+                <input
+                  type="radio"
+                  name={`interest-poll-${section}`}
+                  value={choice}
+                  checked={selected}
+                  onChange={() => submitVote(choice)}
+                />
+                <span className="omb-poll-standard-radio" aria-hidden="true" />
+                <span className="omb-poll-standard-option-copy">
+                  <strong>{copy[isAr ? "ar" : "en"]}</strong>
+                  <small>{copy[isAr ? "arHint" : "enHint"]}</small>
+                </span>
+              </label>
             );
           })}
-        </div>
+        </fieldset>
 
-        {state.message && <p className="mt-4 text-sm font-bold text-aubergine">{state.message}</p>}
-        {state.showResults && state.results && <PollResults locale={locale} results={state.results} />}
+        {state.message && <p className="omb-poll-standard-message">{state.message}</p>}
       </div>
-    </div>
+
+      {state.showResults && state.results && <PollResults locale={locale} results={state.results} />}
+    </section>
   );
 }
 

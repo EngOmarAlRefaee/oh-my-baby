@@ -92,7 +92,19 @@ export default function CheckoutPage({ locale = "ar" }) {
           </div>
           <label className="mt-5 block text-sm font-black">{isAr ? "عنوان التوصيل" : "Delivery address"}<textarea required rows="4" value={form.delivery_address} onChange={(e)=>setForm({...form,delivery_address:e.target.value})} className="mt-2 w-full border border-espresso/12 bg-milk p-4 outline-none" /></label>
           <label className="mt-5 block text-sm font-black">{isAr ? "ملاحظات" : "Notes"}<textarea rows="3" value={form.customer_note} onChange={(e)=>setForm({...form,customer_note:e.target.value})} className="mt-2 w-full border border-espresso/12 bg-milk p-4 outline-none" /></label>
-          <label className="mt-5 block text-sm font-black">{isAr ? "كود حسم أو كوبون مكافأة" : "Promo or reward coupon"}<input value={form.coupon_code} onChange={(e)=>setForm({...form,coupon_code:e.target.value})} className="mt-2 h-12 w-full border border-espresso/12 bg-milk px-4 outline-none" /></label>
+          <label className="mt-5 block text-sm font-black">
+            {isAr ? "كود الحسم أو كوبون المكافأة" : "Promo or reward coupon"}
+            <input
+              value={form.coupon_code}
+              onChange={(e)=>setForm({...form,coupon_code:e.target.value.toUpperCase()})}
+              placeholder={isAr ? "مثال: BABY10" : "Example: BABY10"}
+              autoComplete="off"
+              className="mt-2 h-12 w-full border border-espresso/12 bg-milk px-4 font-black uppercase tracking-[0.12em] outline-none"
+            />
+            <span className="mt-2 block text-xs font-semibold leading-6 text-espresso/50">
+              {isAr ? "إذا كان الكود مفعّلًا، يتم التحقق منه وتطبيق الخصم تلقائيًا عند إرسال الطلب." : "If the code is active, it is validated and the discount is applied automatically when the order is submitted."}
+            </span>
+          </label>
           {error && <p className="mt-5 border border-red-300 bg-red-50 p-3 text-sm font-bold text-red-700">{error}</p>}
           <button disabled={busy || !items.length} className="omb-btn omb-btn-primary mt-7 w-full disabled:opacity-40">{busy ? (isAr ? "جاري الإرسال..." : "Submitting...") : (isAr ? "إرسال الطلب للمراجعة" : "Submit order for review")}</button>
         </form>

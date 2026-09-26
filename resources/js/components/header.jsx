@@ -62,7 +62,7 @@ function HeartIcon() {
   );
 }
 
-function BagIcon() {
+function CartIcon() {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -71,8 +71,8 @@ function BagIcon() {
       strokeWidth="1.7"
       className="h-[23px] w-[23px]"
     >
-      <path d="M6.2 8.3h11.6l.9 12.4H5.3L6.2 8.3Z" />
-      <path d="M9.1 9V6.2a2.9 2.9 0 0 1 5.8 0V9" />
+      <path d="M3 4h2.2l1.8 9.1a2.2 2.2 0 0 0 2.2 1.8h7.3a2.2 2.2 0 0 0 2.1-1.6L20 8H6.1" />
+      <path d="M8.7 19.2h.01M17.2 19.2h.01" strokeWidth="2.4" strokeLinecap="round" />
     </svg>
   );
 }
@@ -506,8 +506,8 @@ export default function Header({
             <p className="mt-1 text-xs leading-relaxed text-espresso/60">
               {comingSoon
                 ? isAr
-                  ? "عم نجهز هالأقسام، وصوتك بالاستفتاء بيساعدنا نقرر شو نطلق أولاً."
-                  : "We're preparing these sections. Your poll vote helps us decide what launches first."
+                  ? "أقسام جديدة قريبًا."
+                  : "New sections coming soon."
                 : isAr
                   ? "اختاري الفئة المناسبة لطفلك."
                   : "Choose the right category."}
@@ -589,13 +589,13 @@ export default function Header({
                 <HeartIcon />
               </HeaderAction>
               <HeaderAction
-                label={isAr ? "السلة" : "Bag"}
+                label={isAr ? "السلة" : "Cart"}
                 badge={cartCount}
                 onClick={() => {
                   window.location.href = "/cart";
                 }}
               >
-                <BagIcon />
+                <CartIcon />
               </HeaderAction>
               <button
                 type="button"

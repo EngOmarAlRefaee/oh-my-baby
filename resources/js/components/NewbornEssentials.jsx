@@ -116,7 +116,6 @@ export default function NewbornEssentials({ locale = "ar" }) {
                 </div>
                 <h3>{isAr ? item.ar : item.en}</h3>
                 <p>{isAr ? item.hintAr : item.hintEn}</p>
-                <strong>{isAr ? "عم نجهزه ليطلع بأحلى شكل" : "Preparing this section beautifully"}</strong>
               </div>
             ))}
           </div>
