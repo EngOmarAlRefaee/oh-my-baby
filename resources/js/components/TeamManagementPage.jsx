@@ -84,13 +84,7 @@ function PermissionSelector({ groups = [], value = [], onChange, locale = "ar", 
     onChange(allSelected ? [] : addDependencies(allCodes, dependencies));
   };
 
-  if (!groups.length) {
-    return (
-      <div className="border border-espresso/10 bg-oat/15 p-4 text-sm text-espresso/50">
-        {isAr ? "لا توجد صلاحيات قابلة للتفويض لهذا النوع من الحساب." : "No delegatable permissions for this account type."}
-      </div>
-    );
-  }
+  if (!groups.length) return null;
 
   return (
     <div className="border border-espresso/10 bg-milk p-4 sm:p-5">
@@ -100,11 +94,6 @@ function PermissionSelector({ groups = [], value = [], onChange, locale = "ar", 
           <h3 className="mt-1 text-base font-black text-espresso">
             {isAr ? "اختيار الصلاحيات" : "Choose permissions"}
           </h3>
-          <p className="mt-1 text-xs leading-6 text-espresso/45">
-            {isAr
-              ? "لا يمكنك منح صلاحية غير موجودة عندك. صلاحيات المشاهدة المطلوبة تتفعل تلقائياً، والإدمن الرئيسي يملك كل صلاحيات التشغيل تلقائياً."
-              : "You cannot grant a permission you do not own. Required view permissions are enabled automatically. The primary admin receives all operational permissions automatically."}
-          </p>
         </div>
         <button
           type="button"
@@ -150,6 +139,121 @@ function PermissionSelector({ groups = [], value = [], onChange, locale = "ar", 
   );
 }
 
+
+function relevantScopeDomains(role, permissions = []) {
+  const hasPrefix = (prefix) => permissions.some((code) => code.startsWith(prefix));
+  if (role === "delivery") {
+    const domains = [];
+    if (hasPrefix("delivery.")) domains.push("orders");
+    if (permissions.includes("delivery.customer_phone")) domains.push("customers");
+    return domains;
+  }
+  if (role !== "admin") return [];
+  const domains = [];
+  if (hasPrefix("orders.")) domains.push("orders");
+  if (hasPrefix("products.")) domains.push("products");
+  if (hasPrefix("delivery.")) domains.push("delivery");
+  return domains;
+}
+
+function DataScopeSelector({ role, permissions = [], value = {}, onChange, data, locale = "ar" }) {
+  const isAr = locale === "ar";
+  const definitions = data?.scope_definitions?.[role] || {};
+  const labels = data?.scope_mode_labels || {};
+  const sections = data?.scope_section_options || [];
+  const viewerScopes = data?.viewer_data_scopes || {};
+  const domains = relevantScopeDomains(role, permissions).filter((domain) => definitions[domain]);
+
+  if (!domains.length) return null;
+
+  const modeAllowed = (domain, mode) => {
+    if (data?.viewer_role === "owner") return true;
+    const parent = viewerScopes[domain];
+    if (!parent) return false;
+    if (parent.mode === "all") return true;
+    return parent.mode === mode;
+  };
+
+  const sectionOptions = (domain) => {
+    if (data?.viewer_role === "owner") return sections;
+    const parent = viewerScopes[domain];
+    if (parent?.mode !== "section") return sections;
+    const allowed = new Set(parent.values || []);
+    return sections.filter((item) => allowed.has(item.code));
+  };
+
+  const setMode = (domain, mode) => {
+    if (!modeAllowed(domain, mode)) return;
+    onChange({
+      ...value,
+      [domain]: { mode, values: mode === "section" ? (value?.[domain]?.values || []) : [] },
+    });
+  };
+
+  const toggleSection = (domain, code) => {
+    const current = new Set(value?.[domain]?.values || []);
+    if (current.has(code)) current.delete(code); else current.add(code);
+    onChange({ ...value, [domain]: { mode: "section", values: Array.from(current) } });
+  };
+
+  return (
+    <div className="border border-espresso/10 bg-milk p-4 sm:p-5">
+      <div className="border-b border-espresso/10 pb-4">
+        <p className="text-xs font-black text-aubergine/60">DATA SCOPE</p>
+        <h3 className="mt-1 text-base font-black text-espresso">{isAr ? "نطاق البيانات" : "Data scope"}</h3>
+        <p className="mt-1 text-xs leading-6 text-espresso/45">
+          {isAr ? "حدد أي بيانات يشوفها الحساب داخل الأقسام اللي سمحتله يدخل عليها." : "Choose which records this account can see inside its allowed sections."}
+        </p>
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        {domains.map((domain) => {
+          const def = definitions[domain];
+          const current = value?.[domain] || { mode: def.default, values: [] };
+          return (
+            <section key={domain} className="border border-espresso/10 bg-oat/10 p-4">
+              <h4 className="text-sm font-black text-espresso">{isAr ? def.ar : def.en}</h4>
+              <div className="mt-3 grid gap-2">
+                {(def.modes || []).filter((mode) => modeAllowed(domain, mode)).map((mode) => (
+                  <label key={mode} className="flex cursor-pointer items-center gap-3 border-t border-espresso/10 pt-2 first:border-0 first:pt-0">
+                    <input
+                      type="radio"
+                      name={`scope-${role}-${domain}`}
+                      checked={current.mode === mode}
+                      onChange={() => setMode(domain, mode)}
+                      className="h-4 w-4 accent-[#7c5f49]"
+                    />
+                    <strong className="text-sm text-espresso">{isAr ? labels?.[mode]?.ar : labels?.[mode]?.en}</strong>
+                  </label>
+                ))}
+              </div>
+
+              {current.mode === "section" && (
+                <div className="mt-4 border-t border-espresso/10 pt-3">
+                  <p className="mb-2 text-xs font-black text-espresso/55">{isAr ? "اختر القسم أو الأقسام" : "Choose section(s)"}</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {sectionOptions(domain).map((section) => (
+                      <label key={section.code} className="flex cursor-pointer items-center gap-2 text-xs font-bold text-espresso/75">
+                        <input
+                          type="checkbox"
+                          checked={(current.values || []).includes(section.code)}
+                          onChange={() => toggleSection(domain, section.code)}
+                          className="h-4 w-4 accent-[#7c5f49]"
+                        />
+                        <span>{isAr ? section.ar : section.en}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </section>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function TeamManagementPage({ locale = "ar" }) {
   const isAr = locale === "ar";
   const [data, setData] = useState(null);
@@ -168,6 +272,7 @@ export default function TeamManagementPage({ locale = "ar" }) {
     role: "admin",
     password: "",
     permissions: [],
+    data_scopes: {},
   });
 
   const load = async () => {
@@ -182,12 +287,37 @@ export default function TeamManagementPage({ locale = "ar" }) {
   useEffect(() => { load(); }, []);
 
   useEffect(() => {
+    if (!editingUser) return undefined;
+
+    const body = document.body;
+    const html = document.documentElement;
+    const previousBodyOverflow = body.style.overflow;
+    const previousHtmlOverflow = html.style.overflow;
+
+    body.style.overflow = "hidden";
+    html.style.overflow = "hidden";
+
+    const onKeyDown = (event) => {
+      if (event.key === "Escape" && !editSaving) closeEdit();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      body.style.overflow = previousBodyOverflow;
+      html.style.overflow = previousHtmlOverflow;
+    };
+  }, [editingUser, editSaving]);
+
+  useEffect(() => {
     if (!data) return;
     if (!data.creatable_roles?.includes(form.role)) {
       setForm((current) => ({
         ...current,
         role: data.creatable_roles?.[0] || "customer",
         permissions: [],
+        data_scopes: data.scope_defaults?.[data.creatable_roles?.[0]] || {},
       }));
     }
   }, [data]);
@@ -207,7 +337,7 @@ export default function TeamManagementPage({ locale = "ar" }) {
   const groupsFor = (role) => data?.permission_groups?.[role] || [];
 
   const setCreateRole = (role) => {
-    setForm((current) => ({ ...current, role, permissions: [] }));
+    setForm((current) => ({ ...current, role, permissions: [], data_scopes: data?.scope_defaults?.[role] || {} }));
     setError("");
     setSuccess("");
   };
@@ -227,7 +357,7 @@ export default function TeamManagementPage({ locale = "ar" }) {
     try {
       await apiFetch("/api/team", { method: "POST", body: JSON.stringify(form) });
       const nextRole = data.creatable_roles?.[0] || "customer";
-      setForm({ name: "", email: "", phone: "", role: nextRole, password: "", permissions: [] });
+      setForm({ name: "", email: "", phone: "", role: nextRole, password: "", permissions: [], data_scopes: data.scope_defaults?.[nextRole] || {} });
       setSuccess(isAr ? "تم إنشاء الحساب مع الصلاحيات المختارة." : "Account created with the selected permissions.");
       await load();
     } catch (e) {
@@ -239,14 +369,14 @@ export default function TeamManagementPage({ locale = "ar" }) {
   };
 
   const openEdit = (user) => {
-    const primaryPermissions = user.is_primary_admin ? permissionCodes(groupsFor("admin")) : [];
     setEditingUser(user);
     setEditForm({
       name: user.name || "",
       email: user.email || "",
       phone: user.phone || "",
       password: "",
-      permissions: user.is_primary_admin ? primaryPermissions : (user.permissions || []),
+      permissions: user.permissions || [],
+      data_scopes: user.data_scopes || data?.scope_defaults?.[user.role] || {},
     });
     setError("");
     setSuccess("");
@@ -283,7 +413,7 @@ export default function TeamManagementPage({ locale = "ar" }) {
       setEditError(isAr ? "كلمة المرور الجديدة لازم تكون 8 أحرف على الأقل." : "New password must be at least 8 characters.");
       return;
     }
-    if (["admin", "delivery"].includes(editingUser.role) && !editingUser.is_primary_admin && !editForm.permissions.length) {
+    if (["admin", "delivery"].includes(editingUser.role) && !editForm.permissions.length) {
       setEditError(isAr ? "لازم يبقى للحساب صلاحية واحدة على الأقل." : "The account must keep at least one permission.");
       return;
     }
@@ -348,6 +478,59 @@ export default function TeamManagementPage({ locale = "ar" }) {
     }
   };
 
+  const deletionBlockerLabel = (code) => {
+    const ar = {
+      owner_account: "حساب الأونر",
+      primary_admin: "الإدمن الرئيسي",
+      customer_orders: "طلبات زبائن",
+      assigned_deliveries: "طلبات توصيل مسندة",
+      return_deliveries: "مرتجعات مسندة",
+      order_history: "سجل عمليات طلبات",
+      reward_coupons: "مكافآت وكوبونات",
+      owner_requests: "طلبات مرفوعة للأونر",
+      reviewed_owner_requests: "طلبات أونر تمت مراجعتها",
+      created_products: "منتجات أنشأها الحساب",
+      updated_products: "منتجات عدّلها الحساب",
+      wishlist: "قائمة مفضلة",
+      product_reviews: "مراجعات منتجات",
+      poll_votes: "تصويتات",
+      customer_feedback: "ملاحظات زبون",
+    };
+    const en = {
+      owner_account: "owner account", primary_admin: "primary admin", customer_orders: "customer orders",
+      assigned_deliveries: "assigned deliveries", return_deliveries: "return deliveries", order_history: "order history",
+      reward_coupons: "reward coupons", owner_requests: "owner requests", reviewed_owner_requests: "reviewed owner requests",
+      created_products: "created products", updated_products: "updated products", wishlist: "wishlist",
+      product_reviews: "product reviews", poll_votes: "poll votes", customer_feedback: "customer feedback",
+    };
+    return (isAr ? ar : en)[code] || code;
+  };
+
+  const deleteAccount = async (user) => {
+    if (!user?.deletion?.can_delete) return;
+    const typed = window.prompt(
+      isAr
+        ? `الحذف النهائي مسموح فقط لأن الحساب غير مستخدم. لحذف ${user.name} نهائياً اكتب DELETE`
+        : `Permanent deletion is allowed only because this account is unused. Type DELETE to permanently delete ${user.name}.`
+    );
+    if (typed !== "DELETE") return;
+
+    setBusy(true);
+    setError("");
+    setSuccess("");
+    try {
+      await apiFetch(`/api/team/${user.id}`, { method: "DELETE" });
+      await load();
+      setSuccess(isAr ? "تم حذف الحساب غير المستخدم نهائياً." : "Unused account permanently deleted.");
+    } catch (e) {
+      const blockers = e.data?.blockers || [];
+      const detail = blockers.length ? ` — ${blockers.map(deletionBlockerLabel).join("، ")}` : "";
+      setError(`${e.message || (isAr ? "تعذر حذف الحساب." : "Could not delete account.")}${detail}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const canManageTarget = (user) => {
     if (!data || user.id === data.viewer_id) return false;
     if (data.viewer_role === "owner") return ["admin", "delivery", "customer"].includes(user.role);
@@ -370,13 +553,11 @@ export default function TeamManagementPage({ locale = "ar" }) {
           <div>
             <p className="omb-eyebrow-label text-aubergine/65">OH MY BABY — TEAM & PERMISSIONS</p>
             <h1 className="mt-2 text-4xl font-black text-espresso">{isAr ? "الحسابات والفريق" : "Accounts & team"}</h1>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-espresso/55">
-              {data?.viewer_role === "owner"
-                ? (isAr ? "إدارة كل حسابات الفريق، تعيين الإدمن الرئيسي، وتحديد الصلاحيات التشغيلية للحسابات." : "Manage team accounts, choose the primary admin and configure operational permissions.")
-                : data?.viewer_is_primary_admin
-                  ? (isAr ? "أنت الإدمن الرئيسي. عندك كل صلاحيات التشغيل تلقائياً، وبتحدد صلاحيات الإدمنز والسائقين اللي بعدك." : "You are the primary admin. You automatically own all operational permissions and delegate them to lower accounts.")
-                  : (isAr ? "الصلاحيات اللي بتشوفها هون هي فقط الصلاحيات اللي الإدمن الأعلى عطاك ياها." : "You only see and delegate permissions granted to your account.")}
-            </p>
+            {data?.viewer_role === "owner" && (
+              <p className="mt-3 max-w-3xl text-sm leading-7 text-espresso/55">
+                {isAr ? "إدارة حسابات الفريق وتوزيع مهامهم من مكان واحد." : "Manage team accounts and distribute responsibilities from one place."}
+              </p>
+            )}
           </div>
           <a href={data?.viewer_role === "owner" ? "/owner" : "/admin"} className="omb-btn omb-btn-secondary">
             {isAr ? "رجوع للوحة التحكم" : "Back to dashboard"}
@@ -400,7 +581,7 @@ export default function TeamManagementPage({ locale = "ar" }) {
               </button>
             </section>
 
-            <div className="mt-8 grid gap-6 xl:grid-cols-[.9fr_1.45fr]">
+            <div className={`mt-8 grid gap-6 ${(data.creatable_roles || []).length ? "xl:grid-cols-[.9fr_1.45fr]" : "grid-cols-1"}`}>
               {(data.creatable_roles || []).length ? <form onSubmit={createAccount} className="border border-espresso/10 bg-oat/15 p-5 sm:p-6">
                 <p className="text-xs font-black text-aubergine/60">NEW ACCOUNT</p>
                 <h2 className="mt-2 text-xl font-black">{isAr ? "إنشاء حساب جديد" : "Create a new account"}</h2>
@@ -432,6 +613,16 @@ export default function TeamManagementPage({ locale = "ar" }) {
                       locale={locale}
                       dependencies={data.permission_dependencies || {}}
                     />
+                    <div className="mt-4">
+                      <DataScopeSelector
+                        role={form.role}
+                        permissions={form.permissions}
+                        value={form.data_scopes}
+                        onChange={(data_scopes) => setForm((current) => ({ ...current, data_scopes }))}
+                        data={data}
+                        locale={locale}
+                      />
+                    </div>
                   </div>
                 )}
 
@@ -444,7 +635,7 @@ export default function TeamManagementPage({ locale = "ar" }) {
                 <button disabled={busy} className="omb-btn omb-btn-primary mt-5 w-full disabled:opacity-50">
                   {busy ? (isAr ? "لحظة..." : "Please wait...") : (isAr ? "إنشاء الحساب بالصلاحيات المحددة" : "Create account with permissions")}
                 </button>
-              </form> : <div className="border border-espresso/10 bg-oat/15 p-5 sm:p-6"><p className="text-xs font-black text-aubergine/60">ACCOUNT CREATION</p><h2 className="mt-2 text-xl font-black">{isAr ? "ما عندك صلاحية إنشاء حسابات" : "Account creation is not assigned"}</h2><p className="mt-3 text-sm leading-7 text-espresso/55">{isAr ? "إذا احتجت إنشاء حساب جديد، لازم الإدمن الأعلى يعطيك صلاحية الإنشاء المناسبة." : "A higher admin must grant the required creation permission."}</p></div>}
+              </form> : null}
 
               <section className="border border-espresso/10 bg-milk p-5 sm:p-6">
                 <div className="flex flex-wrap items-center justify-between gap-4">
@@ -474,12 +665,19 @@ export default function TeamManagementPage({ locale = "ar" }) {
                           <p className="mt-1 text-[11px] text-espresso/40">{isAr ? "آخر دخول:" : "Last login:"} {fmtDate(user.last_login_at, locale)}</p>
                           {user.role !== "customer" && (
                             <p className="mt-2 text-xs font-black text-aubergine/65">
-                              {user.is_primary_admin
-                                ? (isAr ? "صلاحيات التشغيل كاملة تلقائياً" : "All operational permissions automatically")
-                                : (isAr ? `${(user.permissions || []).length} صلاحية مفعلة` : `${(user.permissions || []).length} permissions enabled`)}
+                              {isAr
+                                ? `${(user.permissions || []).length} صلاحية مفعلة${user.is_primary_admin ? " · إدمن رئيسي" : ""}`
+                                : `${(user.permissions || []).length} permissions enabled${user.is_primary_admin ? " · Primary Admin" : ""}`}
                             </p>
                           )}
                           {user.account_status !== "active" && user.suspension_reason && <p className="mt-2 text-xs font-bold text-red-700">{isAr ? "سبب الإيقاف:" : "Suspension reason:"} {user.suspension_reason}</p>}
+                          {data.viewer_role === "owner" && user.deletion && !user.deletion.can_delete && (
+                            <p className="mt-2 text-[11px] leading-5 text-espresso/45">
+                              {isAr ? "الحذف النهائي محمي لأن الحساب مرتبط بـ: " : "Permanent deletion is protected because this account is linked to: "}
+                              {(user.deletion.blockers || []).map(deletionBlockerLabel).join(isAr ? "، " : ", ")}
+                              {isAr ? ". استخدم إيقاف الحساب بدل الحذف." : ". Suspend the account instead."}
+                            </p>
+                          )}
                         </div>
 
                         <div className="flex flex-wrap gap-2">
@@ -497,6 +695,11 @@ export default function TeamManagementPage({ locale = "ar" }) {
                             user.account_status === "active"
                               ? <button disabled={busy} onClick={() => suspend(user)} className="border border-red-300 px-3 py-2 text-xs font-black text-red-700 hover:bg-red-50 disabled:opacity-50">{isAr ? "إيقاف الحساب" : "Suspend"}</button>
                               : <button disabled={busy} onClick={() => reactivate(user)} className="border border-espresso/20 px-3 py-2 text-xs font-black hover:bg-oat/30 disabled:opacity-50">{isAr ? "إعادة التفعيل" : "Reactivate"}</button>
+                          )}
+                          {data.viewer_role === "owner" && user.deletion?.can_delete && (
+                            <button disabled={busy} onClick={() => deleteAccount(user)} className="border border-red-500 px-3 py-2 text-xs font-black text-red-700 hover:bg-red-50 disabled:opacity-50">
+                              {isAr ? "حذف نهائي آمن" : "Safe permanent delete"}
+                            </button>
                           )}
                         </div>
                       </div>
@@ -528,9 +731,16 @@ export default function TeamManagementPage({ locale = "ar" }) {
       </div>
 
       {editingUser && editForm && (
-        <div className="fixed inset-0 z-[120] overflow-y-auto bg-black/55 px-4 py-8" onMouseDown={(e) => { if (e.target === e.currentTarget) closeEdit(); }}>
-          <form onSubmit={saveEdit} noValidate className="mx-auto max-w-4xl border border-espresso/15 bg-milk p-5 shadow-2xl sm:p-7">
-            <div className="flex flex-wrap items-start justify-between gap-4 border-b border-espresso/10 pb-5">
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center overflow-hidden overscroll-contain bg-black/60 p-3 backdrop-blur-[2px] sm:p-6"
+          onMouseDown={(e) => { if (e.target === e.currentTarget && !editSaving) closeEdit(); }}
+        >
+          <form
+            onSubmit={saveEdit}
+            noValidate
+            className="max-h-[calc(100dvh-1.5rem)] w-full max-w-4xl overflow-y-auto overscroll-contain border border-espresso/15 bg-milk shadow-2xl sm:max-h-[calc(100dvh-3rem)]"
+          >
+            <div className="sticky top-0 z-20 flex flex-wrap items-start justify-between gap-4 border-b border-espresso/10 bg-milk p-5 pb-5 sm:p-7 sm:pb-5">
               <div>
                 <p className="text-xs font-black text-aubergine/60">EDIT ACCOUNT</p>
                 <h2 className="mt-1 text-2xl font-black text-espresso">{isAr ? `تعديل ${editingUser.name}` : `Edit ${editingUser.name}`}</h2>
@@ -539,6 +749,7 @@ export default function TeamManagementPage({ locale = "ar" }) {
               <button type="button" onClick={closeEdit} className="border border-espresso/15 px-3 py-2 text-xs font-black">{isAr ? "إغلاق" : "Close"}</button>
             </div>
 
+            <div className="px-5 sm:px-7">
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <input required value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} placeholder={isAr ? "الاسم" : "Name"} className="border border-espresso/15 bg-milk px-4 py-3 text-sm outline-none focus:border-aubergine" />
               <input required type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} placeholder="Email" className="border border-espresso/15 bg-milk px-4 py-3 text-sm outline-none focus:border-aubergine" />
@@ -548,22 +759,23 @@ export default function TeamManagementPage({ locale = "ar" }) {
 
             {["admin", "delivery"].includes(editingUser.role) && (
               <div className="mt-5">
-                {editingUser.is_primary_admin ? (
-                  <div className="border border-aubergine/20 bg-oat/20 p-5">
-                    <strong className="text-base text-espresso">{isAr ? "الإدمن الرئيسي" : "Primary Admin"}</strong>
-                    <p className="mt-2 text-sm leading-7 text-espresso/55">
-                      {isAr ? "هاد الحساب بياخد كل صلاحيات التشغيل تلقائياً. صلاحيات الأونر الحساسة ما بتكون جزء من هالقائمة أصلاً." : "This account automatically receives all operational permissions; owner-only powers are not part of this catalog."}
-                    </p>
-                  </div>
-                ) : (
-                  <PermissionSelector
-                    groups={groupsFor(editingUser.role)}
-                    value={editForm.permissions}
-                    onChange={(permissions) => setEditForm((current) => ({ ...current, permissions }))}
+                <PermissionSelector
+                  groups={groupsFor(editingUser.role)}
+                  value={editForm.permissions}
+                  onChange={(permissions) => setEditForm((current) => ({ ...current, permissions }))}
+                  locale={locale}
+                  dependencies={data.permission_dependencies || {}}
+                />
+                <div className="mt-4">
+                  <DataScopeSelector
+                    role={editingUser.role}
+                    permissions={editForm.permissions}
+                    value={editForm.data_scopes}
+                    onChange={(data_scopes) => setEditForm((current) => ({ ...current, data_scopes }))}
+                    data={data}
                     locale={locale}
-                    dependencies={data.permission_dependencies || {}}
                   />
-                )}
+                </div>
               </div>
             )}
 
@@ -578,8 +790,9 @@ export default function TeamManagementPage({ locale = "ar" }) {
                 {editError}
               </div>
             )}
+            </div>
 
-            <div className="mt-6 flex flex-wrap items-center justify-end gap-2">
+            <div className="sticky bottom-0 z-20 mt-6 flex flex-wrap items-center justify-end gap-2 border-t border-espresso/10 bg-milk p-5 sm:px-7">
               <button type="button" onClick={closeEdit} disabled={editSaving} className="omb-btn omb-btn-secondary disabled:opacity-50">{isAr ? "إلغاء" : "Cancel"}</button>
               <button type="submit" disabled={editSaving} className="omb-btn omb-btn-primary disabled:opacity-50">
                 {editSaving ? (isAr ? "جاري الحفظ..." : "Saving...") : (isAr ? "حفظ التعديلات" : "Save changes")}

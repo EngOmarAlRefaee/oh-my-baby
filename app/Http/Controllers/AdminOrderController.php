@@ -4,24 +4,35 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\User;
+use App\Support\DataScope;
+use App\Support\PermissionCatalog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class AdminOrderController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
+        $orders = Order::with([
+            'items', 'user:id,name,email,phone', 'deliveryUser:id,name,phone',
+            'returnDeliveryUser:id,name,phone', 'commission',
+        ]);
+        DataScope::applyOrders($orders, $request->user());
+
+        $drivers = PermissionCatalog::has($request->user(), 'orders.dispatch')
+            ? User::where('role', 'delivery')->where('account_status', 'active')->orderBy('name')->get(['id', 'name', 'phone', 'email'])
+            : collect();
+
         return response()->json([
-            'orders' => Order::with([
-                'items', 'user:id,name,email,phone', 'deliveryUser:id,name,phone',
-                'returnDeliveryUser:id,name,phone', 'commission',
-            ])->latest()->limit(200)->get(),
-            'drivers' => User::where('role', 'delivery')->orderBy('name')->get(['id', 'name', 'phone', 'email']),
+            'orders' => $orders->latest()->limit(200)->get(),
+            'drivers' => $drivers,
         ]);
     }
 
     public function accept(Request $request, Order $order): JsonResponse
     {
+        DataScope::assertOrderVisible($request->user(), $order);
+
         if ($order->status !== 'pending_review') {
             return response()->json(['message' => 'Only orders under review can be accepted.'], 409);
         }
@@ -38,6 +49,8 @@ class AdminOrderController extends Controller
 
     public function reject(Request $request, Order $order): JsonResponse
     {
+        DataScope::assertOrderVisible($request->user(), $order);
+
         if ($order->status !== 'pending_review') {
             return response()->json(['message' => 'Only orders under review can be rejected.'], 409);
         }
@@ -56,6 +69,8 @@ class AdminOrderController extends Controller
 
     public function dispatch(Request $request, Order $order): JsonResponse
     {
+        DataScope::assertOrderVisible($request->user(), $order);
+
         if ($order->status !== 'accepted') {
             return response()->json(['message' => 'Accept the order before sending it to a driver.'], 409);
         }
@@ -75,6 +90,8 @@ class AdminOrderController extends Controller
 
     public function approveReturn(Request $request, Order $order): JsonResponse
     {
+        DataScope::assertOrderVisible($request->user(), $order);
+
         if ($order->status !== 'return_requested') {
             return response()->json(['message' => 'This order does not have a pending return request.'], 409);
         }
@@ -93,6 +110,8 @@ class AdminOrderController extends Controller
 
     public function rejectReturn(Request $request, Order $order): JsonResponse
     {
+        DataScope::assertOrderVisible($request->user(), $order);
+
         if ($order->status !== 'return_requested') {
             return response()->json(['message' => 'This order does not have a pending return request.'], 409);
         }
@@ -110,6 +129,8 @@ class AdminOrderController extends Controller
 
     public function dispatchReturn(Request $request, Order $order): JsonResponse
     {
+        DataScope::assertOrderVisible($request->user(), $order);
+
         if ($order->status !== 'return_approved') {
             return response()->json(['message' => 'Approve the return before assigning a driver.'], 409);
         }

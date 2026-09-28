@@ -88,6 +88,15 @@ class PermissionCatalog
                 ],
             ],
             [
+                'key' => 'marketing',
+                'title_ar' => 'التسويق والعروض',
+                'title_en' => 'Marketing & offers',
+                'items' => [
+                    ['code' => 'marketing.view', 'ar' => 'مشاهدة التسويق والعروض والاستفتاءات', 'en' => 'View marketing, offers and polls'],
+                    ['code' => 'marketing.manage', 'ar' => 'تعديل العروض والكوبونات وإعدادات التسويق', 'en' => 'Manage offers, coupons and marketing settings'],
+                ],
+            ],
+            [
                 'key' => 'owner_requests',
                 'title_ar' => 'التعامل مع الأونر',
                 'title_en' => 'Owner requests',
@@ -135,6 +144,7 @@ class PermissionCatalog
             'orders.returns' => ['orders.view'],
             'delivery.act_as' => ['delivery.view'],
             'finance.transfer' => ['finance.view'],
+            'marketing.manage' => ['marketing.view'],
             'delivery.start' => ['delivery.orders.view'],
             'delivery.complete' => ['delivery.orders.view'],
             'delivery.return_at_door' => ['delivery.orders.view'],
@@ -150,10 +160,6 @@ class PermissionCatalog
             return ['*'];
         }
 
-        if ($user->role === 'admin' && (bool) $user->is_primary_admin) {
-            return self::flatForRole('admin');
-        }
-
         $allowed = self::flatForRole($user->role);
         $assigned = is_array($user->permissions) ? $user->permissions : [];
 
@@ -166,17 +172,13 @@ class PermissionCatalog
             return true;
         }
 
-        if ($user->role === 'admin' && (bool) $user->is_primary_admin) {
-            return in_array($permission, self::flatForRole('admin'), true);
-        }
-
         return in_array($permission, self::effectiveFor($user), true);
     }
 
     public static function assignableBy(User $actor, string $targetRole): array
     {
         $targetAllowed = self::flatForRole($targetRole);
-        if ($actor->role === 'owner' || ($actor->role === 'admin' && (bool) $actor->is_primary_admin)) {
+        if ($actor->role === 'owner') {
             return $targetAllowed;
         }
 
@@ -186,6 +188,14 @@ class PermissionCatalog
 
         $actorEffective = self::effectiveFor($actor);
         return array_values(array_intersect($targetAllowed, $actorEffective));
+    }
+
+    public static function targetPermissionsWithinActor(User $actor, User $target): bool
+    {
+        if ($actor->role === 'owner') return true;
+        if ($actor->role !== 'admin') return false;
+
+        return count(array_diff(self::effectiveFor($target), self::effectiveFor($actor))) === 0;
     }
 
     public static function sanitizeForAssignment(User $actor, string $targetRole, array $requested): array

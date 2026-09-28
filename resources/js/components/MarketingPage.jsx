@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../lib/api";
+import { hasPermission } from "../lib/permissions";
 
 export default function MarketingPage({ locale = "ar" }) {
   const isAr = locale === "ar";
   const [data, setData] = useState({ promo_codes: [], subscribers: [], polls: [], feedback: [] });
   const [form, setForm] = useState({ code: "BABY10", discount_percent: 10, active: true, first_order_only: true });
   const [message, setMessage] = useState("");
+  const [session, setSession] = useState(null);
 
   function load() {
     apiFetch("/api/admin/marketing").then((payload) => {
@@ -15,7 +17,9 @@ export default function MarketingPage({ locale = "ar" }) {
     }).catch((error) => setMessage(error.message));
   }
 
-  useEffect(load, []);
+  useEffect(() => { load(); apiFetch("/auth/session").then(setSession).catch(() => {}); }, []);
+
+  const canManage = hasPermission(session?.user, "marketing.manage");
 
   async function savePromo(event) {
     event.preventDefault();
@@ -50,7 +54,7 @@ export default function MarketingPage({ locale = "ar" }) {
         <p className="mt-3 max-w-2xl text-sm leading-7 text-espresso/55">{isAr ? "إدارة كود الحسم، المشتركين بالبريد، ونتائج استفتاءات الأقسام القادمة." : "Manage promo codes, newsletter subscribers and upcoming-section polls."}</p>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-2">
-          <form onSubmit={savePromo} className="border border-espresso/10 bg-oat/20 p-6">
+          {canManage ? <form onSubmit={savePromo} className="border border-espresso/10 bg-oat/20 p-6">
             <h2 className="text-xl font-black">{isAr ? "كود الحسم العام" : "Public promo code"}</h2>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <label className="block text-sm font-black">
@@ -94,7 +98,7 @@ export default function MarketingPage({ locale = "ar" }) {
 
             <button className="omb-btn omb-btn-primary mt-5 w-full">{isAr ? "حفظ إعدادات الكود" : "Save code settings"}</button>
             {message && <p className="mt-3 text-xs font-bold text-aubergine">{message}</p>}
-          </form>
+          </form> : null}
 
           <section className="border border-espresso/10 bg-milk p-6">
             <h2 className="text-xl font-black">{isAr ? "مشتركو البريد" : "Newsletter subscribers"}</h2>

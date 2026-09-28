@@ -77,8 +77,8 @@ Route::middleware(['auth', 'active', 'role:owner,admin'])->prefix('api/admin')->
     Route::post('/orders/{order}/return-reject', [AdminOrderController::class, 'rejectReturn'])->middleware('permission:orders.returns');
     Route::post('/orders/{order}/return-dispatch', [AdminOrderController::class, 'dispatchReturn'])->middleware('permission:orders.returns');
 
-    Route::get('/marketing', [MarketingController::class, 'adminIndex'])->middleware('permission:analytics.view');
-    Route::post('/marketing/promo', [MarketingController::class, 'savePromo'])->middleware('permission:products.edit');
+    Route::get('/marketing', [MarketingController::class, 'adminIndex'])->middleware('permission:marketing.view');
+    Route::post('/marketing/promo', [MarketingController::class, 'savePromo'])->middleware('permission:marketing.manage');
 
     Route::get('/products', [CatalogController::class, 'adminIndex'])->middleware('permission:products.view');
     Route::post('/products/bootstrap', [CatalogController::class, 'bootstrap'])->middleware('permission:products.create');
@@ -103,6 +103,7 @@ Route::middleware(['auth', 'active', 'role:owner,admin'])->prefix('api/team')->g
     Route::post('/{user}/suspend', [TeamManagementController::class, 'suspend'])->middleware('permission:team.suspend_accounts');
     Route::post('/{user}/reactivate', [TeamManagementController::class, 'reactivate'])->middleware('permission:team.suspend_accounts');
     Route::post('/{user}/make-primary-admin', [TeamManagementController::class, 'makePrimaryAdmin'])->middleware('role:owner');
+    Route::delete('/{user}', [TeamManagementController::class, 'destroy'])->middleware('role:owner');
 });
 
 Route::middleware(['auth', 'active', 'role:owner'])->prefix('api/owner')->group(function () {
@@ -123,8 +124,22 @@ Route::middleware(['auth', 'active', 'role:owner,admin', 'permission:finance.vie
 Route::middleware(['auth', 'active', 'role:owner,admin', 'permission:finance.transfer'])->post('/api/owner/commissions/{commission}/transfer', [CommissionController::class, 'transfer']);
 
 Route::view('/owner/{any?}', 'welcome')->where('any', '.*')->middleware(['auth', 'active', 'role:owner']);
+
+// Admin workspace pages are permission-gated on the server too. The dashboard itself stays
+// available to every active admin and renders only the modules granted to that account.
+Route::view('/admin/team/{any?}', 'welcome')->where('any', '.*')->middleware(['auth', 'active', 'role:owner,admin', 'permission:team.view']);
+Route::view('/admin/orders/{any?}', 'welcome')->where('any', '.*')->middleware(['auth', 'active', 'role:owner,admin', 'permission:orders.view']);
+Route::view('/admin/products/{any?}', 'welcome')->where('any', '.*')->middleware(['auth', 'active', 'role:owner,admin', 'permission:products.view']);
+Route::view('/admin/operations/{any?}', 'welcome')->where('any', '.*')->middleware(['auth', 'active', 'role:owner,admin', 'permission:finance.view']);
+Route::view('/admin/marketing/{any?}', 'welcome')->where('any', '.*')->middleware(['auth', 'active', 'role:owner,admin', 'permission:marketing.view']);
 Route::view('/admin/{any?}', 'welcome')->where('any', '.*')->middleware(['auth', 'active', 'role:owner,admin']);
-Route::view('/delivery/{any?}', 'welcome')->where('any', '.*')->middleware(['auth', 'active', 'role:owner,admin,delivery']);
+
+Route::view('/delivery/{any?}', 'welcome')->where('any', '.*')->middleware([
+    'auth',
+    'active',
+    'role:owner,admin,delivery',
+    'permission:delivery.orders.view,delivery.view,delivery.act_as',
+]);
 
 Route::view('/account', 'welcome')->name('login');
 Route::view('/', 'welcome');

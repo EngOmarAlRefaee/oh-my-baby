@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Support\DataScope;
+use App\Support\PermissionCatalog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -45,8 +47,16 @@ class AuthController extends Controller
             ], 422);
         }
 
+        if (($user->account_status ?? 'active') !== 'active') {
+            return response()->json([
+                'message' => 'هذا الحساب موقوف. تواصل مع إدارة المتجر.',
+                'code' => 'account_suspended',
+            ], 403);
+        }
+
         Auth::login($user, $request->boolean('remember'));
         $request->session()->regenerate();
+        $user->forceFill(['last_login_at' => now()])->save();
 
         return response()->json([
             'message' => 'Signed in.',
@@ -57,6 +67,13 @@ class AuthController extends Controller
 
     public function register(Request $request): JsonResponse
     {
+        if ($request->filled('phone')) {
+            $request->merge(['phone' => $this->normalizePhone((string) $request->input('phone'))]);
+        }
+        if ($request->filled('email')) {
+            $request->merge(['email' => mb_strtolower(trim((string) $request->input('email')))]);
+        }
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'phone' => [
@@ -155,6 +172,10 @@ class AuthController extends Controller
             'email' => $this->isInternalPhoneEmail($user->email) ? null : $user->email,
             'phone' => $user->phone,
             'role' => $user->role,
+            'is_primary_admin' => (bool) ($user->is_primary_admin ?? false),
+            'account_status' => $user->account_status ?? 'active',
+            'effective_permissions' => PermissionCatalog::effectiveFor($user),
+            'effective_data_scopes' => DataScope::effectiveFor($user),
             'avatar_url' => $user->avatar_url,
             'google_connected' => filled($user->google_id),
             'marketing_opt_in' => (bool) ($user->marketing_opt_in ?? false),

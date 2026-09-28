@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\RewardCoupon;
 use App\Services\CommissionService;
 use App\Services\RewardService;
+use App\Support\DataScope;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -23,13 +24,7 @@ class DeliveryOrderController extends Controller
             'returnDeliveryUser:id,name,phone', 'commission',
         ])->whereIn('status', $statuses);
 
-        if ($request->user()->role === 'delivery') {
-            $userId = $request->user()->id;
-            $query->where(function ($q) use ($userId) {
-                $q->where('assigned_delivery_id', $userId)
-                    ->orWhere('return_delivery_id', $userId);
-            });
-        }
+        DataScope::applyDeliveryOrders($query, $request->user());
 
         return response()->json(['orders' => $query->latest()->limit(150)->get()]);
     }
@@ -169,6 +164,8 @@ class DeliveryOrderController extends Controller
         $role = $request->user()?->role;
         abort_unless(in_array($role, ['owner', 'admin', 'delivery'], true), 403);
 
+        DataScope::assertDeliveryOrderVisible($request->user(), $order);
+
         if ($role === 'delivery') {
             abort_unless((int) $order->assigned_delivery_id === (int) $request->user()->id, 403);
         }
@@ -178,6 +175,8 @@ class DeliveryOrderController extends Controller
     {
         $role = $request->user()?->role;
         abort_unless(in_array($role, ['owner', 'admin', 'delivery'], true), 403);
+
+        DataScope::assertDeliveryOrderVisible($request->user(), $order);
 
         if ($role === 'delivery') {
             abort_unless((int) $order->return_delivery_id === (int) $request->user()->id, 403);

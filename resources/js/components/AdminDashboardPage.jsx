@@ -1,82 +1,215 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../lib/api";
+import { hasAnyPermission, hasPermission } from "../lib/permissions";
 import OrderStatus from "./ui/OrderStatus";
 
 function Stat({ label, value, action, href }) {
-  return (
-    <a href={href || "/admin/orders"} className="border border-espresso/10 bg-oat/20 p-5 transition hover:border-aubergine/35">
+  const body = (
+    <>
       <p className="text-xs font-black text-aubergine/60">{label}</p>
       <strong className="mt-2 block text-3xl text-espresso">{value}</strong>
       {action && <p className="mt-2 text-xs text-espresso/50">{action}</p>}
+    </>
+  );
+
+  if (!href) {
+    return <div className="border border-espresso/10 bg-oat/20 p-5">{body}</div>;
+  }
+
+  return <a href={href} className="border border-espresso/10 bg-oat/20 p-5 transition hover:border-aubergine/35">{body}</a>;
+}
+
+function WorkspaceCard({ eyebrow, title, description, href }) {
+  return (
+    <a href={href} className="group border border-espresso/10 bg-milk p-5 transition duration-300 hover:border-aubergine/35 hover:bg-oat/25">
+      <p className="text-[10px] font-black tracking-[0.18em] text-aubergine/55">{eyebrow}</p>
+      <strong className="mt-2 block text-lg text-espresso">{title}</strong>
+      <p className="mt-2 text-sm leading-6 text-espresso/55">{description}</p>
+      <span className="mt-4 inline-block text-sm text-aubergine transition-transform duration-300 group-hover:translate-x-1 rtl:group-hover:-translate-x-1">→</span>
     </a>
   );
 }
 
 export default function AdminDashboardPage({ locale = "ar" }) {
   const isAr = locale === "ar";
+  const [session, setSession] = useState(null);
   const [data, setData] = useState(null);
-  const [error, setError] = useState("");
+  const [sessionError, setSessionError] = useState("");
+  const [analyticsError, setAnalyticsError] = useState("");
 
-  const load = () => apiFetch("/api/dashboard").then(setData).catch((e) => setError(e.message));
   useEffect(() => {
+    let cancelled = false;
+
+    apiFetch("/auth/session")
+      .then((next) => {
+        if (!cancelled) {
+          setSession(next);
+          setSessionError("");
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) setSessionError(error.message);
+      });
+
+    return () => { cancelled = true; };
+  }, []);
+
+  const user = session?.user || null;
+  const canViewAnalytics = hasPermission(user, "analytics.view");
+
+  useEffect(() => {
+    if (!user || !canViewAnalytics) {
+      setData(null);
+      setAnalyticsError("");
+      return undefined;
+    }
+
+    let cancelled = false;
+    const load = () => apiFetch("/api/dashboard")
+      .then((next) => {
+        if (!cancelled) {
+          setData(next);
+          setAnalyticsError("");
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) setAnalyticsError(error.message);
+      });
+
     load();
     const timer = window.setInterval(load, 15000);
-    return () => window.clearInterval(timer);
-  }, []);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [user?.id, canViewAnalytics]);
+
+  const workspaces = useMemo(() => {
+    if (!user) return [];
+
+    const modules = [
+      {
+        key: "orders",
+        visible: hasPermission(user, "orders.view"),
+        eyebrow: "ORDERS",
+        title: isAr ? "الطلبات" : "Orders",
+        description: isAr ? "مراجعة الطلبات وتنفيذ الإجراءات المسموحة لحسابك." : "Review orders and perform only the actions granted to your account.",
+        href: "/admin/orders",
+      },
+      {
+        key: "products",
+        visible: hasPermission(user, "products.view"),
+        eyebrow: "CATALOG",
+        title: isAr ? "المنتجات والمخزون" : "Products & inventory",
+        description: isAr ? "إدارة المنتجات والمخزون ضمن الصلاحيات المحددة." : "Manage products and inventory within your granted permissions.",
+        href: "/admin/products",
+      },
+      {
+        key: "delivery",
+        visible: hasAnyPermission(user, ["delivery.view", "delivery.act_as"]),
+        eyebrow: "DELIVERY",
+        title: isAr ? "التوصيل" : "Delivery",
+        description: isAr ? "متابعة التوصيل فقط إذا سمح لك الـOwner بذلك." : "Access delivery operations only when granted by the owner.",
+        href: "/delivery",
+      },
+      {
+        key: "finance",
+        visible: hasPermission(user, "finance.view"),
+        eyebrow: "FINANCE",
+        title: isAr ? "الماليات والعمولات" : "Finance & commissions",
+        description: isAr ? "عرض التحصيل والعمولات المسموحة لهذا الحساب." : "View the collections and commissions granted to this account.",
+        href: "/admin/operations",
+      },
+      {
+        key: "team",
+        visible: hasPermission(user, "team.view"),
+        eyebrow: "ACCESS",
+        title: isAr ? "الحسابات والصلاحيات" : "Accounts & permissions",
+        description: isAr ? "إدارة الحسابات الأدنى فقط ضمن حدود التفويض." : "Manage lower-level accounts only within delegated limits.",
+        href: "/admin/team",
+      },
+      {
+        key: "marketing",
+        visible: hasPermission(user, "marketing.view"),
+        eyebrow: "GROWTH",
+        title: isAr ? "التسويق والعروض" : "Marketing & offers",
+        description: isAr ? "متابعة التسويق ونتائجه حسب الصلاحيات الحالية." : "View marketing operations allowed by the current permission set.",
+        href: "/admin/marketing",
+      },
+    ];
+
+    return modules.filter((module) => module.visible);
+  }, [user, isAr, canViewAnalytics]);
 
   return (
     <main className="min-h-[75vh] bg-milk px-5 py-12" dir={isAr ? "rtl" : "ltr"}>
       <div className="mx-auto max-w-7xl">
-        <div className="flex flex-wrap items-end justify-between gap-5">
-          <div>
-            <p className="omb-eyebrow-label text-aubergine/65">OH MY BABY — ADMIN</p>
-            <h1 className="mt-2 text-4xl font-black text-espresso">{isAr ? "لوحة التشغيل" : "Operations dashboard"}</h1>
-            <p className="mt-3 text-sm text-espresso/55">{isAr ? "هاي الصفحة هي نقطة البداية اليومية: الطلبات أولاً، بعدها المنتجات والتوصيل والتحصيل." : "Your daily starting point: orders first, then products, delivery and payments."}</p>
-          </div>
-          <a href="/admin/orders" className="omb-btn omb-btn-primary">{isAr ? "فتح الطلبات" : "Open orders"}</a>
+        <div className="flex flex-wrap items-start justify-between gap-5">
+          <h1 className="text-3xl font-black tracking-tight text-espresso sm:text-4xl">{isAr ? "لوحة التحكم" : "Dashboard"}</h1>
+          {user && <div className="border border-espresso/10 bg-oat/20 px-4 py-3 text-sm"><strong>{user.name}</strong><p className="mt-1 text-xs text-espresso/50">{user.email || user.phone || "—"}</p></div>}
         </div>
 
-        {error && <p className="mt-6 border border-red-300 bg-red-50 p-3 text-red-700">{error}</p>}
-        {data && (
+        {sessionError && <p className="mt-6 border border-red-300 bg-red-50 p-3 text-red-700">{sessionError}</p>}
+
+        {session && !user && (
+          <p className="mt-6 border border-espresso/10 bg-oat/20 p-5 text-sm text-espresso/65">{isAr ? "الجلسة غير صالحة. سجّل الدخول من جديد." : "Your session is no longer valid. Please sign in again."}</p>
+        )}
+
+        {user && (
           <>
-            <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-              <Stat label={isAr ? "طلبات اليوم" : "Today's orders"} value={data.orders.today} action={isAr ? "كل الطلبات الجديدة" : "New orders"} />
-              <Stat label={isAr ? "قيد المراجعة" : "Under review"} value={data.orders.pending_review} action={isAr ? "الأولوية الآن" : "Priority now"} />
-              <Stat label={isAr ? "تم قبولها" : "Accepted"} value={data.orders.accepted} action={isAr ? "بانتظار سائق" : "Waiting for driver"} />
-              <Stat label={isAr ? "عند السائق" : "Assigned"} value={data.orders.assigned_to_driver} action={isAr ? "لم يبدأ التوصيل" : "Not started"} href="/delivery" />
-              <Stat label={isAr ? "بالتوصيل" : "Out for delivery"} value={data.orders.out_for_delivery} action={isAr ? "جارية الآن" : "Live now"} href="/delivery" />
-              <Stat label={isAr ? "تم اليوم" : "Delivered today"} value={data.orders.delivered_today} action={`$${Number(data.sales.delivered_today_usd).toFixed(2)}`} />
-            </div>
-
-            <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-              <a href="/admin/orders" className="border border-espresso/10 bg-milk p-5 hover:border-aubergine/35"><p className="text-[10px] font-black text-aubergine/55">ORDERS</p><strong className="mt-2 block text-lg">{isAr ? "قبول وتحويل الطلبات" : "Accept & dispatch orders"}</strong><p className="mt-2 text-sm text-espresso/55">{isAr ? "راجع الطلب، اقبله، اختر السائق وأرسله." : "Review, accept, choose a driver and dispatch."}</p></a>
-              <a href="/admin/products" className="border border-espresso/10 bg-milk p-5 hover:border-aubergine/35"><p className="text-[10px] font-black text-aubergine/55">PRODUCTS</p><strong className="mt-2 block text-lg">{isAr ? "المنتجات والمخزون" : "Products & inventory"}</strong><p className="mt-2 text-sm text-espresso/55">{isAr ? "إضافة وتعديل الأسعار والقياسات والصور." : "Edit products, prices, variants and images."}</p></a>
-              <a href="/delivery" className="border border-espresso/10 bg-milk p-5 hover:border-aubergine/35"><p className="text-[10px] font-black text-aubergine/55">DELIVERY</p><strong className="mt-2 block text-lg">{isAr ? "متابعة التوصيل" : "Delivery follow-up"}</strong><p className="mt-2 text-sm text-espresso/55">{isAr ? "شوف شو عند كل سائق ووين وصلت الطلبات." : "See assigned orders and delivery progress."}</p></a>
-              <a href="/admin/operations" className="border border-espresso/10 bg-milk p-5 hover:border-aubergine/35"><p className="text-[10px] font-black text-aubergine/55">SHAM CASH</p><strong className="mt-2 block text-lg">{isAr ? "التحصيل والعمولات" : "Payments & commissions"}</strong><p className="mt-2 text-sm text-espresso/55">{isAr ? "متابعة حساب الشركة والعمولات والتحويلات." : "Company account, commission and transfer operations."}</p></a>
-              <a href="/admin/marketing" className="border border-espresso/10 bg-milk p-5 hover:border-aubergine/35"><p className="text-[10px] font-black text-aubergine/55">MARKETING</p><strong className="mt-2 block text-lg">{isAr ? "العروض والتسويق" : "Marketing"}</strong><p className="mt-2 text-sm text-espresso/55">{isAr ? "كود الحسم، المشتركين ونتائج الاستفتاءات." : "Promo code, subscribers and poll results."}</p></a>
-            </div>
-
-            <div className="mt-8 grid gap-6 lg:grid-cols-[1.45fr_.75fr]">
-              <section className="border border-espresso/10 bg-oat/15 p-5 sm:p-6">
-                <div className="flex items-center justify-between gap-4"><h2 className="text-xl font-black">{isAr ? "آخر الطلبات" : "Recent orders"}</h2><a href="/admin/orders" className="text-xs font-black text-aubergine underline">{isAr ? "إدارة الطلبات" : "Manage orders"}</a></div>
-                <div className="mt-4 grid gap-3">
-                  {data.recent_orders.map((order) => (
-                    <a key={order.id} href="/admin/orders" className="flex flex-wrap items-center justify-between gap-3 border-t border-espresso/10 pt-3 first:border-0 first:pt-0">
-                      <div><strong className="text-sm">{order.reference}</strong><p className="mt-1 text-xs text-espresso/50">{order.customer_name} · ${Number(order.total_usd).toFixed(2)}</p></div>
-                      <OrderStatus status={order.status} locale={locale} />
-                    </a>
-                  ))}
+            <section className="mt-6">
+              {workspaces.length > 0 ? (
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {workspaces.map((module) => <WorkspaceCard key={module.key} {...module} />)}
                 </div>
-              </section>
+              ) : null}
+            </section>
 
-              <aside className="border border-espresso/10 bg-milk p-5 sm:p-6">
-                <p className="text-xs font-black text-aubergine/60">SHAM CASH</p>
-                <h2 className="mt-2 text-xl font-black">{isAr ? "مرجع التحصيل" : "Payment reference"}</h2>
-                <p className="mt-3 text-sm leading-6 text-espresso/55">{isAr ? "هذا هو حساب الشركة الذي سنعرضه للزبون عند تفعيل الدفع عبر Sham Cash." : "This is the company account that will be shown to customers when Sham Cash checkout is enabled."}</p>
-                <p className="mt-4 border border-espresso/10 bg-oat/20 p-3 text-sm font-black">{data.sham_cash.company_account_configured ? data.sham_cash.company_account : (isAr ? "الحساب غير مضبوط بعد" : "Account not configured yet")}</p>
-                <p className="mt-4 text-xs text-espresso/50">{isAr ? `عمولات بانتظار المعالجة: $${Number(data.commissions.pending_usd).toFixed(2)}` : `Pending commissions: $${Number(data.commissions.pending_usd).toFixed(2)}`}</p>
-              </aside>
-            </div>
+            {canViewAnalytics && analyticsError && <p className="mt-6 border border-red-300 bg-red-50 p-3 text-red-700">{analyticsError}</p>}
+
+            {canViewAnalytics && data && (
+              <>
+                <section className="mt-10">
+                  <div>
+                    <p className="text-xs font-black tracking-[0.18em] text-aubergine/50">ANALYTICS</p>
+                    <h2 className="mt-1 text-2xl font-black text-espresso">{isAr ? "ملخص التشغيل" : "Operations summary"}</h2>
+                  </div>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                    <Stat label={isAr ? "طلبات اليوم" : "Today's orders"} value={data.orders.today} action={isAr ? "كل الطلبات الجديدة" : "New orders"} href={hasPermission(user, "orders.view") ? "/admin/orders" : null} />
+                    <Stat label={isAr ? "قيد المراجعة" : "Under review"} value={data.orders.pending_review} action={isAr ? "الأولوية الآن" : "Priority now"} href={hasPermission(user, "orders.view") ? "/admin/orders" : null} />
+                    <Stat label={isAr ? "تم قبولها" : "Accepted"} value={data.orders.accepted} action={isAr ? "بانتظار سائق" : "Waiting for driver"} href={hasPermission(user, "orders.view") ? "/admin/orders" : null} />
+                    <Stat label={isAr ? "عند السائق" : "Assigned"} value={data.orders.assigned_to_driver} action={isAr ? "لم يبدأ التوصيل" : "Not started"} href={hasAnyPermission(user, ["delivery.view", "delivery.act_as"]) ? "/delivery" : null} />
+                    <Stat label={isAr ? "بالتوصيل" : "Out for delivery"} value={data.orders.out_for_delivery} action={isAr ? "جارية الآن" : "Live now"} href={hasAnyPermission(user, ["delivery.view", "delivery.act_as"]) ? "/delivery" : null} />
+                    <Stat label={isAr ? "تم اليوم" : "Delivered today"} value={data.orders.delivered_today} action={`$${Number(data.sales.delivered_today_usd).toFixed(2)}`} />
+                  </div>
+                </section>
+
+                {hasPermission(user, "orders.view") && (
+                  <section className="mt-8 border border-espresso/10 bg-oat/15 p-5 sm:p-6">
+                    <div className="flex items-center justify-between gap-4"><h2 className="text-xl font-black">{isAr ? "آخر الطلبات" : "Recent orders"}</h2><a href="/admin/orders" className="text-xs font-black text-aubergine underline">{isAr ? "إدارة الطلبات" : "Manage orders"}</a></div>
+                    <div className="mt-4 grid gap-3">
+                      {data.recent_orders.map((order) => (
+                        <a key={order.id} href="/admin/orders" className="flex flex-wrap items-center justify-between gap-3 border-t border-espresso/10 pt-3 first:border-0 first:pt-0">
+                          <div><strong className="text-sm">{order.reference}</strong><p className="mt-1 text-xs text-espresso/50">{order.customer_name} · ${Number(order.total_usd).toFixed(2)}</p></div>
+                          <OrderStatus status={order.status} locale={locale} />
+                        </a>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {hasPermission(user, "finance.view") && (
+                  <aside className="mt-8 border border-espresso/10 bg-milk p-5 sm:p-6">
+                    <p className="text-xs font-black text-aubergine/60">SHAM CASH</p>
+                    <h2 className="mt-2 text-xl font-black">{isAr ? "مرجع التحصيل" : "Payment reference"}</h2>
+                    <p className="mt-3 text-sm leading-6 text-espresso/55">{isAr ? "بيانات التحصيل تظهر فقط لأن حسابك يملك صلاحية مشاهدة الماليات." : "Collection data is visible because this account has finance access."}</p>
+                    <p className="mt-4 border border-espresso/10 bg-oat/20 p-3 text-sm font-black">{data.sham_cash.company_account_configured ? data.sham_cash.company_account : (isAr ? "الحساب غير مضبوط بعد" : "Account not configured yet")}</p>
+                    <p className="mt-4 text-xs text-espresso/50">{isAr ? `عمولات بانتظار المعالجة: $${Number(data.commissions.pending_usd).toFixed(2)}` : `Pending commissions: $${Number(data.commissions.pending_usd).toFixed(2)}`}</p>
+                  </aside>
+                )}
+              </>
+            )}
           </>
         )}
       </div>

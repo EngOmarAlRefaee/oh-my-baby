@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\CatalogProduct;
+use App\Support\DataScope;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,9 +24,12 @@ class CatalogController extends Controller
         return response()->json(['products' => $products]);
     }
 
-    public function adminIndex(): JsonResponse
+    public function adminIndex(Request $request): JsonResponse
     {
-        $products = CatalogProduct::query()
+        $query = CatalogProduct::query();
+        DataScope::applyProducts($query, $request->user());
+
+        $products = $query
             ->latest('updated_at')
             ->get()
             ->map(fn (CatalogProduct $product) => $product->toStoreArray())
@@ -37,7 +41,7 @@ class CatalogController extends Controller
     public function bootstrap(Request $request): JsonResponse
     {
         if (CatalogProduct::query()->exists()) {
-            return $this->adminIndex();
+            return $this->adminIndex($request);
         }
 
         $data = $request->validate([
@@ -47,11 +51,12 @@ class CatalogController extends Controller
 
         DB::transaction(function () use ($data, $request) {
             foreach ($data['products'] as $raw) {
+                DataScope::assertProductCategoryVisible($request->user(), (string) ($raw['category'] ?? ''));
                 $this->persist($raw, $request->user()?->id);
             }
         });
 
-        return $this->adminIndex();
+        return $this->adminIndex($request);
     }
 
     public function store(Request $request): JsonResponse
@@ -64,14 +69,17 @@ class CatalogController extends Controller
             ]);
         }
 
+        DataScope::assertProductCategoryVisible($request->user(), (string) ($raw['category'] ?? ''));
         $product = DB::transaction(fn () => $this->persist($raw, $request->user()?->id));
         return response()->json(['product' => $product->toStoreArray()]);
     }
 
     public function update(Request $request, string $externalId): JsonResponse
     {
-        CatalogProduct::where('external_id', $externalId)->firstOrFail();
+        $existing = CatalogProduct::where('external_id', $externalId)->firstOrFail();
+        DataScope::assertProductCategoryVisible($request->user(), (string) $existing->category);
         $raw = $request->validate(['product' => ['required', 'array']])['product'];
+        DataScope::assertProductCategoryVisible($request->user(), (string) ($raw['category'] ?? $existing->category));
         $raw['id'] = $externalId;
         $raw['external_id'] = $externalId;
 
@@ -82,6 +90,7 @@ class CatalogController extends Controller
     public function archive(Request $request, string $externalId): JsonResponse
     {
         $product = CatalogProduct::where('external_id', $externalId)->firstOrFail();
+        DataScope::assertProductCategoryVisible($request->user(), (string) $product->category);
         $product->update(['status' => 'inactive', 'updated_by' => $request->user()?->id]);
 
         return response()->json(['ok' => true]);

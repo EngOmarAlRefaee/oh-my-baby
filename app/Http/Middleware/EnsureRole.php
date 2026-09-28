@@ -10,7 +10,9 @@ class EnsureRole
 {
     public function handle(Request $request, Closure $next, string ...$roles): Response
     {
-        if (! $request->user()) {
+        $user = $request->user();
+
+        if (! $user) {
             if ($request->is('api/*') || $request->expectsJson()) {
                 return response()->json(['message' => 'Unauthenticated.'], 401);
             }
@@ -18,14 +20,24 @@ class EnsureRole
             return redirect('/account');
         }
 
-        if (! in_array($request->user()->role, $roles, true)) {
+        if (! in_array($user->role, $roles, true)) {
             if ($request->is('api/*') || $request->expectsJson()) {
-                return response()->json(['message' => 'You do not have permission to access this area.'], 403);
+                return response()->json(['message' => 'Forbidden.'], 403);
             }
 
-            abort(403, 'You do not have permission to access this area.');
+            return redirect($this->homeForRole((string) $user->role));
         }
 
         return $next($request);
+    }
+
+    private function homeForRole(string $role): string
+    {
+        return match ($role) {
+            'owner' => '/owner',
+            'admin' => '/admin',
+            'delivery' => '/delivery',
+            default => '/account',
+        };
     }
 }

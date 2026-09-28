@@ -11,8 +11,7 @@ class DatabaseSeeder extends Seeder
 
     public function run(): void
     {
-        if (! app()->environment('production')) {
-            $this->call(DemoAccountsSeeder::class);
-        }
+        // Production and local development now use real accounts managed by the Owner UI.
+        // Intentionally empty: demo accounts are permanently retired.
     }
 }

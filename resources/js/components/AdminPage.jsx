@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   categoryTree,
   colorPresets,
@@ -14,6 +14,8 @@ import {
   normalizeProduct,
   saveProducts,
 } from "../data/productStore";
+import { apiFetch } from "../lib/api";
+import { hasPermission } from "../lib/permissions";
 
 const NEW_STEPS = [
   "world",
@@ -157,6 +159,22 @@ export default function AdminPage({ locale = "ar" }) {
   const [customSize, setCustomSize] = useState("");
   const [customColor, setCustomColor] = useState({ ar: "", en: "", hex: "#b9a79d" });
   const [message, setMessage] = useState("");
+  const [session, setSession] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch("/auth/session")
+      .then((next) => { if (!cancelled) setSession(next); })
+      .catch(() => { if (!cancelled) setSession(null); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const user = session?.user || null;
+  const canViewOrders = hasPermission(user, "orders.view");
+  const canViewFinance = hasPermission(user, "finance.view");
+  const canCreateProducts = hasPermission(user, "products.create");
+  const canEditProducts = hasPermission(user, "products.edit");
+  const canArchiveProducts = hasPermission(user, "products.archive");
 
   const editSteps = useMemo(
     () => [...EDITABLE_STEPS.filter((step) => editParts.includes(step)), "review"],
@@ -595,11 +613,13 @@ export default function AdminPage({ locale = "ar" }) {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <a href="/admin/orders" className="omb-btn omb-btn-secondary">{isAr ? "إدارة الطلبات" : "Orders"}</a>
-              <a href="/admin/operations" className="omb-btn omb-btn-secondary">{isAr ? "عمليات الأونر" : "Owner operations"}</a>
-              <button type="button" onClick={startNew} className="omb-btn omb-btn-primary">
-                + {isAr ? "إضافة جديد" : "Add new"}
-              </button>
+              {canViewOrders && <a href="/admin/orders" className="omb-btn omb-btn-secondary">{isAr ? "إدارة الطلبات" : "Orders"}</a>}
+              {canViewFinance && <a href="/admin/operations" className="omb-btn omb-btn-secondary">{isAr ? "الماليات والعمولات" : "Finance & commissions"}</a>}
+              {canCreateProducts && (
+                <button type="button" onClick={startNew} className="omb-btn omb-btn-primary">
+                  + {isAr ? "إضافة جديد" : "Add new"}
+                </button>
+              )}
             </div>
           </div>
 
@@ -625,22 +645,28 @@ export default function AdminPage({ locale = "ar" }) {
                     ${product.offerPrice ?? product.price} · {totalStock(product)} {isAr ? "قطعة بالمخزون" : "units in stock"}
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => startEdit(product)}
-                    className="border border-espresso/15 px-4 py-2 text-xs font-black"
-                  >
-                    {isAr ? "تعديل" : "Edit"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => remove(product.id)}
-                    className="border border-aubergine/25 px-4 py-2 text-xs font-black text-aubergine"
-                  >
-                    {isAr ? "حذف" : "Delete"}
-                  </button>
-                </div>
+                {(canEditProducts || canArchiveProducts) && (
+                  <div className="flex flex-wrap gap-2">
+                    {canEditProducts && (
+                      <button
+                        type="button"
+                        onClick={() => startEdit(product)}
+                        className="border border-espresso/15 px-4 py-2 text-xs font-black"
+                      >
+                        {isAr ? "تعديل" : "Edit"}
+                      </button>
+                    )}
+                    {canArchiveProducts && (
+                      <button
+                        type="button"
+                        onClick={() => remove(product.id)}
+                        className="border border-aubergine/25 px-4 py-2 text-xs font-black text-aubergine"
+                      >
+                        {isAr ? "حذف" : "Delete"}
+                      </button>
+                    )}
+                  </div>
+                )}
               </article>
             ))}
           </div>

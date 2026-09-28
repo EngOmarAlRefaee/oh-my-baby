@@ -43,6 +43,13 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_primary_admin' => 'boolean',
+            'permissions' => 'array',
+            'data_scopes' => 'array',
+            'permissions_updated_at' => 'datetime',
+            'last_login_at' => 'datetime',
+            'suspended_at' => 'datetime',
+            'marketing_opt_in' => 'boolean',
         ];
     }
 }

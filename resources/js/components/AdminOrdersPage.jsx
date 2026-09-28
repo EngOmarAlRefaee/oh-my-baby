@@ -3,6 +3,7 @@ import OrderStatus from "./ui/OrderStatus";
 import OrderTimeline from "./ui/OrderTimeline";
 import ReturnTimeline from "./ui/ReturnTimeline";
 import { apiFetch } from "../lib/api";
+import { hasAnyPermission, hasPermission } from "../lib/permissions";
 
 const RETURN_STATUSES = ["return_requested", "return_approved", "return_assigned", "return_in_transit", "returned"];
 
@@ -13,6 +14,23 @@ export default function AdminOrdersPage({ locale = "ar" }) {
   const [selectedReturnDrivers, setSelectedReturnDrivers] = useState({});
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState("");
+  const [session, setSession] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch("/auth/session")
+      .then((next) => { if (!cancelled) setSession(next); })
+      .catch(() => { if (!cancelled) setSession(null); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const user = session?.user || null;
+  const canAccept = hasPermission(user, "orders.accept");
+  const canReject = hasPermission(user, "orders.reject");
+  const canDispatch = hasPermission(user, "orders.dispatch");
+  const canManageReturns = hasPermission(user, "orders.returns");
+  const canUseDelivery = hasAnyPermission(user, ["delivery.view", "delivery.act_as"]);
+  const canViewFinance = hasPermission(user, "finance.view");
 
   async function load() {
     try {
@@ -75,9 +93,9 @@ export default function AdminOrdersPage({ locale = "ar" }) {
             <p className="mt-3 text-espresso/60">{isAr ? "الحالة تتغيّر حسب الإجراء الحقيقي. والإدمن أو الأونر يقدر يتدخل مكان السائق من لوحة التوصيل عند الحاجة." : "Statuses follow real actions. Admin/Owner can step in from the delivery board when needed."}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <a href="/admin" className="omb-btn omb-btn-secondary">{isAr ? "لوحة الإدمن" : "Admin"}</a>
-            <a href="/delivery" className="omb-btn omb-btn-secondary">{isAr ? "لوحة التوصيل / التدخل" : "Delivery / fallback"}</a>
-            <a href="/admin/operations" className="omb-btn omb-btn-secondary">{isAr ? "التحصيل والعمولات" : "Finance"}</a>
+            <a href="/admin" className="omb-btn omb-btn-secondary">{isAr ? "لوحة التحكم" : "Dashboard"}</a>
+            {canUseDelivery && <a href="/delivery" className="omb-btn omb-btn-secondary">{isAr ? "لوحة التوصيل / التدخل" : "Delivery / fallback"}</a>}
+            {canViewFinance && <a href="/admin/operations" className="omb-btn omb-btn-secondary">{isAr ? "الماليات والعمولات" : "Finance & commissions"}</a>}
           </div>
         </div>
 
@@ -121,27 +139,27 @@ export default function AdminOrdersPage({ locale = "ar" }) {
                 </div>
 
                 <div className="mt-6 border-t border-espresso/10 pt-5">
-                  {order.status === "pending_review" && (
+                  {order.status === "pending_review" && (canAccept || canReject) && (
                     <div className="flex flex-wrap gap-3">
-                      <button disabled={busy === `accept-${order.id}`} onClick={() => action(order.id, "accept")} className="omb-btn omb-btn-primary">{isAr ? "قبول الطلب" : "Accept order"}</button>
-                      <button disabled={busy === `reject-${order.id}`} onClick={() => { const note = window.prompt(isAr ? "سبب الرفض (اختياري)" : "Rejection reason (optional)", "") ?? null; if (note !== null) action(order.id, "reject", { admin_note: note || null }); }} className="omb-btn omb-btn-secondary">{isAr ? "رفض الطلب" : "Reject order"}</button>
+                      {canAccept && <button disabled={busy === `accept-${order.id}`} onClick={() => action(order.id, "accept")} className="omb-btn omb-btn-primary">{isAr ? "قبول الطلب" : "Accept order"}</button>}
+                      {canReject && <button disabled={busy === `reject-${order.id}`} onClick={() => { const note = window.prompt(isAr ? "سبب الرفض (اختياري)" : "Rejection reason (optional)", "") ?? null; if (note !== null) action(order.id, "reject", { admin_note: note || null }); }} className="omb-btn omb-btn-secondary">{isAr ? "رفض الطلب" : "Reject order"}</button>}
                     </div>
                   )}
 
-                  {order.status === "accepted" && (
+                  {order.status === "accepted" && canDispatch && (
                     <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
                       <label className="text-xs font-black">{isAr ? "اختر السائق" : "Choose driver"}<select value={selectedDriver} onChange={(e) => setSelectedDrivers((current) => ({ ...current, [order.id]: e.target.value }))} className="mt-2 h-11 w-full border border-espresso/12 bg-milk px-3"><option value="">{isAr ? "اختر سائقاً" : "Choose driver"}</option>{data.drivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.name}</option>)}</select></label>
                       <button disabled={!selectedDriver || busy === `dispatch-${order.id}`} onClick={() => action(order.id, "dispatch", { delivery_user_id: Number(selectedDriver) })} className="omb-btn omb-btn-primary disabled:opacity-40">{isAr ? "إرسال الطلب للسائق" : "Send to driver"}</button>
                     </div>
                   )}
 
-                  {order.status === "assigned_to_driver" && <div className="flex flex-wrap items-center justify-between gap-3 border border-espresso/10 bg-milk/60 p-4"><div><strong>{isAr ? "تم إرسال الطلب للسائق" : "Order sent to driver"}</strong><p className="mt-1 text-sm text-espresso/60">{order.delivery_user?.name || "—"}</p></div><a href="/delivery" className="omb-btn omb-btn-secondary">{isAr ? "تدخل مكان السائق" : "Operate as fallback"}</a></div>}
+                  {order.status === "assigned_to_driver" && <div className="flex flex-wrap items-center justify-between gap-3 border border-espresso/10 bg-milk/60 p-4"><div><strong>{isAr ? "تم إرسال الطلب للسائق" : "Order sent to driver"}</strong><p className="mt-1 text-sm text-espresso/60">{order.delivery_user?.name || "—"}</p></div>{canUseDelivery && <a href="/delivery" className="omb-btn omb-btn-secondary">{isAr ? "تدخل مكان السائق" : "Operate as fallback"}</a>}</div>}
 
-                  {order.status === "out_for_delivery" && <div className="flex flex-wrap items-center justify-between gap-3"><p className="font-bold">{isAr ? `السائق ${order.delivery_user?.name || ""} بدأ التوصيل.` : "Driver started delivery."}</p><a href="/delivery" className="omb-btn omb-btn-secondary">{isAr ? "تدخل مكان السائق" : "Operate as fallback"}</a></div>}
+                  {order.status === "out_for_delivery" && <div className="flex flex-wrap items-center justify-between gap-3"><p className="font-bold">{isAr ? `السائق ${order.delivery_user?.name || ""} بدأ التوصيل.` : "Driver started delivery."}</p>{canUseDelivery && <a href="/delivery" className="omb-btn omb-btn-secondary">{isAr ? "تدخل مكان السائق" : "Operate as fallback"}</a>}</div>}
 
                   {order.status === "delivered" && <p className="font-bold">{isAr ? "تم التسليم ✓ — تم احتساب الطلب للمكافآت والعمولة." : "Delivered ✓ — rewards and commission processed."}</p>}
 
-                  {order.status === "return_requested" && (
+                  {order.status === "return_requested" && canManageReturns && (
                     <div>
                       <p className="mb-3 font-bold">{isAr ? "الزبون طلب إرجاع الطلب." : "Customer requested a return."}</p>
                       <div className="flex flex-wrap gap-3">
@@ -151,15 +169,15 @@ export default function AdminOrdersPage({ locale = "ar" }) {
                     </div>
                   )}
 
-                  {order.status === "return_approved" && (
+                  {order.status === "return_approved" && canManageReturns && (
                     <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
                       <label className="text-xs font-black">{isAr ? "اختر سائق استلام المرتجع" : "Choose return driver"}<select value={selectedReturnDriver} onChange={(e) => setSelectedReturnDrivers((current) => ({ ...current, [order.id]: e.target.value }))} className="mt-2 h-11 w-full border border-espresso/12 bg-milk px-3"><option value="">{isAr ? "اختر سائقاً" : "Choose driver"}</option>{data.drivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.name}</option>)}</select></label>
                       <button disabled={!selectedReturnDriver || busy === `return-dispatch-${order.id}`} onClick={() => action(order.id, "return-dispatch", { delivery_user_id: Number(selectedReturnDriver) })} className="omb-btn omb-btn-primary disabled:opacity-40">{isAr ? "إرسال سائق لاستلام المرتجع" : "Send return driver"}</button>
                     </div>
                   )}
 
-                  {order.status === "return_assigned" && <div className="flex flex-wrap items-center justify-between gap-3"><p className="font-bold">{isAr ? `تم تكليف ${order.return_delivery_user?.name || "السائق"} باستلام المرتجع.` : "Return driver assigned."}</p><a href="/delivery" className="omb-btn omb-btn-secondary">{isAr ? "تدخل مكان السائق" : "Operate as fallback"}</a></div>}
-                  {order.status === "return_in_transit" && <div className="flex flex-wrap items-center justify-between gap-3"><p className="font-bold">{isAr ? "المرتجع بالطريق إلى OH MY BABY." : "Return is on the way back."}</p><a href="/delivery" className="omb-btn omb-btn-secondary">{isAr ? "إتمام المرتجع بنفسي" : "Complete return as fallback"}</a></div>}
+                  {order.status === "return_assigned" && <div className="flex flex-wrap items-center justify-between gap-3"><p className="font-bold">{isAr ? `تم تكليف ${order.return_delivery_user?.name || "السائق"} باستلام المرتجع.` : "Return driver assigned."}</p>{canUseDelivery && <a href="/delivery" className="omb-btn omb-btn-secondary">{isAr ? "تدخل مكان السائق" : "Operate as fallback"}</a>}</div>}
+                  {order.status === "return_in_transit" && <div className="flex flex-wrap items-center justify-between gap-3"><p className="font-bold">{isAr ? "المرتجع بالطريق إلى OH MY BABY." : "Return is on the way back."}</p>{canUseDelivery && <a href="/delivery" className="omb-btn omb-btn-secondary">{isAr ? "إتمام المرتجع بنفسي" : "Complete return as fallback"}</a>}</div>}
                   {order.status === "returned" && <p className="font-bold">{isAr ? "تم استلام المرتجع ✓ — تم تحديث المكافآت وعكس العمولة إن وجدت." : "Returned ✓ — rewards and commission updated."}</p>}
                   {order.status === "rejected" && <p className="font-bold text-red-700">{isAr ? "تم رفض الطلب." : "Order rejected."}</p>}
                 </div>

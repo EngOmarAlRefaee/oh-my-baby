@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Product;
+use App\Support\DataScope;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -17,6 +18,7 @@ class AdminProductController extends Controller
         ]);
 
         foreach ($data['products'] as $payload) {
+            DataScope::assertProductCategoryVisible($request->user(), (string) ($payload['category'] ?? ''));
             $this->storePayload($payload);
         }
 
@@ -42,6 +44,7 @@ class AdminProductController extends Controller
         ]);
         $payload = array_merge($request->all(), $payload);
         $payload['id'] = $externalId;
+        DataScope::assertProductCategoryVisible($request->user(), (string) ($payload['category'] ?? ''));
         $product = $this->storePayload($payload);
         return response()->json(['product' => $product->payload]);
     }
@@ -53,9 +56,10 @@ class AdminProductController extends Controller
         return response()->json(['url' => Storage::disk('public')->url($path)], 201);
     }
 
-    public function archive(string $externalId): JsonResponse
+    public function archive(Request $request, string $externalId): JsonResponse
     {
         $product = Product::where('external_id', $externalId)->firstOrFail();
+        DataScope::assertProductCategoryVisible($request->user(), (string) (($product->payload ?? [])['category'] ?? ''));
         $product->update(['archived_at' => now(), 'status' => 'archived']);
         return response()->json(['ok' => true]);
     }

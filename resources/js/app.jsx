@@ -25,6 +25,8 @@ import OwnerDashboardPage from "./components/OwnerDashboardPage";
 import AdminDashboardPage from "./components/AdminDashboardPage";
 import MarketingPage from "./components/MarketingPage";
 import TeamManagementPage from "./components/TeamManagementPage";
+import HelpCenterPage from "./components/HelpCenterPage";
+import OwnerSectionPage from "./components/OwnerSectionPage";
 
 function App() {
   const [locale, setLocale] = useState(() => { try { return window.localStorage.getItem("omb-locale") || "ar"; } catch { return "ar"; } });
@@ -65,7 +67,13 @@ function App() {
   const shell = (children) => <div className="min-h-screen bg-milk text-espresso" dir={isAr ? "rtl" : "ltr"}><div aria-hidden="true" className="omb-dark-stars" />{children}</div>;
 
   if (pathname.startsWith("/owner/team")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><TeamManagementPage locale={locale} /><Footer locale={locale} /></>);
+  if (pathname.startsWith("/owner/help")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><HelpCenterPage locale={locale} /><Footer locale={locale} /></>);
+  if (pathname.startsWith("/owner/section/")) {
+    const sectionKey = pathname.split("/owner/section/")[1]?.split("/")[0] || "";
+    return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><OwnerSectionPage locale={locale} sectionKey={sectionKey} /><Footer locale={locale} /></>);
+  }
   if (pathname.startsWith("/owner")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><OwnerDashboardPage locale={locale} /><Footer locale={locale} /></>);
+  if (pathname.startsWith("/admin/team")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><TeamManagementPage locale={locale} /><Footer locale={locale} /></>);
   if (pathname.startsWith("/admin/marketing")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><MarketingPage locale={locale} /><Footer locale={locale} /></>);
   if (pathname.startsWith("/admin/operations")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><OwnerOperationsPage locale={locale} /><Footer locale={locale} /></>);
   if (pathname.startsWith("/admin/orders")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><AdminOrdersPage locale={locale} /><Footer locale={locale} /></>);
