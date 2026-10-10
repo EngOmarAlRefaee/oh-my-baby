@@ -19,11 +19,14 @@ function Stat({ label, value, action, href }) {
   return <a href={href} className="border border-espresso/10 bg-oat/20 p-5 transition hover:border-aubergine/35">{body}</a>;
 }
 
-function WorkspaceCard({ eyebrow, title, description, href }) {
+function WorkspaceCard({ eyebrow, title, description, href, badge = 0 }) {
   return (
     <a href={href} className="group border border-espresso/10 bg-milk p-5 transition duration-300 hover:border-aubergine/35 hover:bg-oat/25">
       <p className="text-[10px] font-black tracking-[0.18em] text-aubergine/55">{eyebrow}</p>
-      <strong className="mt-2 block text-lg text-espresso">{title}</strong>
+      <div className="mt-2 flex items-center justify-between gap-3">
+        <strong className="block text-lg text-espresso">{title}</strong>
+        {badge > 0 && <span className="rounded-full bg-aubergine px-2 py-0.5 text-[10px] font-black text-milk">{badge}</span>}
+      </div>
       <p className="mt-2 text-sm leading-6 text-espresso/55">{description}</p>
       <span className="mt-4 inline-block text-sm text-aubergine transition-transform duration-300 group-hover:translate-x-1 rtl:group-hover:-translate-x-1">→</span>
     </a>
@@ -36,6 +39,7 @@ export default function AdminDashboardPage({ locale = "ar" }) {
   const [data, setData] = useState(null);
   const [sessionError, setSessionError] = useState("");
   const [analyticsError, setAnalyticsError] = useState("");
+  const [supportSummary, setSupportSummary] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,6 +60,7 @@ export default function AdminDashboardPage({ locale = "ar" }) {
 
   const user = session?.user || null;
   const canViewAnalytics = hasPermission(user, "analytics.view");
+  const canViewSupport = hasPermission(user, "support.view");
 
   useEffect(() => {
     if (!user || !canViewAnalytics) {
@@ -84,6 +89,25 @@ export default function AdminDashboardPage({ locale = "ar" }) {
       window.clearInterval(timer);
     };
   }, [user?.id, canViewAnalytics]);
+
+  useEffect(() => {
+    if (!user || !canViewSupport) {
+      setSupportSummary(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+    const load = () => apiFetch("/api/support/staff/summary")
+      .then((next) => { if (!cancelled) setSupportSummary(next); })
+      .catch(() => { if (!cancelled) setSupportSummary(null); });
+
+    load();
+    const timer = window.setInterval(load, 15000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [user?.id, canViewSupport]);
 
   const workspaces = useMemo(() => {
     if (!user) return [];
@@ -115,10 +139,10 @@ export default function AdminDashboardPage({ locale = "ar" }) {
       },
       {
         key: "finance",
-        visible: hasPermission(user, "finance.view"),
-        eyebrow: "FINANCE",
-        title: isAr ? "الماليات والعمولات" : "Finance & commissions",
-        description: isAr ? "عرض التحصيل والعمولات المسموحة لهذا الحساب." : "View the collections and commissions granted to this account.",
+        visible: hasPermission(user, "commissions.self.view"),
+        eyebrow: "MY COMMISSIONS",
+        title: isAr ? "عمولاتي ومستحقاتي" : "My commissions & dues",
+        description: isAr ? "مشاهدة مستحقاتك الحالية وتأكيد التحويل الأسبوعي حسب صلاحياتك." : "View your current dues and confirm the weekly transfer when permitted.",
         href: "/admin/operations",
       },
       {
@@ -128,6 +152,23 @@ export default function AdminDashboardPage({ locale = "ar" }) {
         title: isAr ? "الحسابات والصلاحيات" : "Accounts & permissions",
         description: isAr ? "إدارة الحسابات الأدنى فقط ضمن حدود التفويض." : "Manage lower-level accounts only within delegated limits.",
         href: "/admin/team",
+      },
+      {
+        key: "decoration",
+        visible: hasPermission(user, "decoration.view"),
+        eyebrow: "DECOR",
+        title: isAr ? "التزيين" : "Decoration",
+        description: isAr ? "مساحة العمل الخاصة بالتزيين فقط." : "Dedicated decoration workspace.",
+        href: "/admin/decoration",
+      },
+      {
+        key: "support",
+        visible: hasPermission(user, "support.view"),
+        eyebrow: "SUPPORT",
+        title: isAr ? "محادثات العملاء" : "Customer support",
+        description: isAr ? "متابعة رسائل الزباين والزوار والرد عليها حسب صلاحيات الحساب." : "Handle customer and guest conversations within the granted support permissions.",
+        href: "/admin/support",
+        badge: Number(supportSummary?.unread || 0),
       },
       {
         key: "marketing",
@@ -140,7 +181,7 @@ export default function AdminDashboardPage({ locale = "ar" }) {
     ];
 
     return modules.filter((module) => module.visible);
-  }, [user, isAr, canViewAnalytics]);
+  }, [user, isAr, canViewAnalytics, supportSummary?.unread]);
 
   return (
     <main className="min-h-[75vh] bg-milk px-5 py-12" dir={isAr ? "rtl" : "ltr"}>
@@ -199,15 +240,6 @@ export default function AdminDashboardPage({ locale = "ar" }) {
                   </section>
                 )}
 
-                {hasPermission(user, "finance.view") && (
-                  <aside className="mt-8 border border-espresso/10 bg-milk p-5 sm:p-6">
-                    <p className="text-xs font-black text-aubergine/60">SHAM CASH</p>
-                    <h2 className="mt-2 text-xl font-black">{isAr ? "مرجع التحصيل" : "Payment reference"}</h2>
-                    <p className="mt-3 text-sm leading-6 text-espresso/55">{isAr ? "بيانات التحصيل تظهر فقط لأن حسابك يملك صلاحية مشاهدة الماليات." : "Collection data is visible because this account has finance access."}</p>
-                    <p className="mt-4 border border-espresso/10 bg-oat/20 p-3 text-sm font-black">{data.sham_cash.company_account_configured ? data.sham_cash.company_account : (isAr ? "الحساب غير مضبوط بعد" : "Account not configured yet")}</p>
-                    <p className="mt-4 text-xs text-espresso/50">{isAr ? `عمولات بانتظار المعالجة: $${Number(data.commissions.pending_usd).toFixed(2)}` : `Pending commissions: $${Number(data.commissions.pending_usd).toFixed(2)}`}</p>
-                  </aside>
-                )}
               </>
             )}
           </>
@@ -216,3 +248,5 @@ export default function AdminDashboardPage({ locale = "ar" }) {
     </main>
   );
 }
+
+

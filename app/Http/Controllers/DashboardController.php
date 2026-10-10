@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CommissionShare;
 use App\Models\CommissionTransfer;
+use App\Models\FinancialLedgerEntry;
+use App\Models\FinancialSettlement;
 use App\Models\Order;
 use App\Models\User;
 use App\Support\DataScope;
@@ -68,16 +71,30 @@ class DashboardController extends Controller
                 'company_account_configured' => filled(config('ohmybaby.sham_cash.company_account')),
             ];
 
-            $base['commissions'] = $user->role === 'owner'
-                ? [
-                    'pending_usd' => (float) CommissionTransfer::where('status', 'pending')->sum('amount_usd'),
-                    'paid_usd' => (float) CommissionTransfer::where('status', 'paid')->sum('amount_usd'),
-                    'failed_count' => CommissionTransfer::where('status', 'failed')->count(),
-                ]
-                : [
-                    'pending_usd' => (float) CommissionTransfer::where('status', 'pending')->sum('amount_usd'),
-                    'pending_count' => CommissionTransfer::where('status', 'pending')->count(),
+            if ($user->role === 'owner') {
+                $balances = FinancialLedgerEntry::query()
+                    ->selectRaw('account_user_id, SUM(amount_usd) as balance')
+                    ->groupBy('account_user_id')
+                    ->get();
+
+                $base['commissions'] = [
+                    'pending_usd' => round((float) $balances->sum(fn ($row) => max(0, -(float) $row->balance)), 4),
+                    'paid_usd' => (float) FinancialSettlement::where('status', 'confirmed')->sum('amount_usd'),
+                    'failed_count' => 0,
                 ];
+            } else {
+                $balance = (float) FinancialLedgerEntry::where('account_user_id', $user->id)->sum('amount_usd');
+                $base['commissions'] = [
+                    'pending_usd' => round(max(0, -$balance), 4),
+                    'pending_count' => CommissionShare::where('admin_user_id', $user->id)
+                        ->whereIn('status', ['pending', 'partially_paid'])
+                        ->count()
+                        + CommissionTransfer::where('debtor_user_id', $user->id)
+                            ->whereDoesntHave('shares')
+                            ->whereIn('status', ['pending', 'partially_paid'])
+                            ->count(),
+                ];
+            }
         } else {
             $base['sham_cash'] = null;
             $base['commissions'] = null;
@@ -93,3 +110,5 @@ class DashboardController extends Controller
         return substr($account, 0, 4).'••••'.substr($account, -4);
     }
 }
+
+

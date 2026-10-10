@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\User;
+use App\Services\CatalogInventoryService;
+use Illuminate\Support\Facades\DB;
 use App\Support\DataScope;
 use App\Support\PermissionCatalog;
 use Illuminate\Http\JsonResponse;
@@ -40,6 +42,7 @@ class AdminOrderController extends Controller
         $order->update([
             'status' => 'accepted',
             'accepted_at' => now(),
+            'accepted_by_user_id' => $request->user()->id,
             'rejected_at' => null,
         ]);
         $this->event($order, $request, 'order_accepted');
@@ -47,7 +50,7 @@ class AdminOrderController extends Controller
         return $this->freshOrder($order);
     }
 
-    public function reject(Request $request, Order $order): JsonResponse
+    public function reject(Request $request, Order $order, CatalogInventoryService $inventoryService): JsonResponse
     {
         DataScope::assertOrderVisible($request->user(), $order);
 
@@ -57,12 +60,19 @@ class AdminOrderController extends Controller
 
         $data = $request->validate(['admin_note' => ['nullable', 'string', 'max:3000']]);
 
-        $order->update([
-            'status' => 'rejected',
-            'admin_note' => $data['admin_note'] ?? $order->admin_note,
-            'rejected_at' => now(),
-        ]);
-        $this->event($order, $request, 'order_rejected', $data['admin_note'] ?? null);
+        DB::transaction(function () use ($order, $request, $data, $inventoryService) {
+            $locked = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
+            if ($locked->status !== 'pending_review') {
+                abort(409, 'Only orders under review can be rejected.');
+            }
+            $locked->update([
+                'status' => 'rejected',
+                'admin_note' => $data['admin_note'] ?? $locked->admin_note,
+                'rejected_at' => now(),
+            ]);
+            $inventoryService->restoreOrder($locked);
+            $this->event($locked, $request, 'order_rejected', $data['admin_note'] ?? null);
+        });
 
         return $this->freshOrder($order);
     }

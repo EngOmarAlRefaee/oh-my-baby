@@ -3964,3 +3964,59 @@ html[data-theme="dark"] .omb-auth-dialog-head { background: #080808 !important; 
   .omb-auth-modal { padding: 10px !important; }
   .omb-auth-dialog { max-height: calc(100dvh - 20px) !important; }
 }
+
+
+
+/* ===== OMB hover polish v5 =====
+   Keep hover feedback visible in both themes without turning cards/icons black. */
+.omb-auth-choice {
+  transition: transform .22s ease, border-color .22s ease, background-color .22s ease, box-shadow .22s ease !important;
+}
+.omb-auth-choice:hover:not(:disabled) {
+  background: #f8f3eb !important;
+  box-shadow: 0 10px 28px rgba(78, 58, 41, .08);
+}
+.omb-auth-choice-icon {
+  background: #f5efe6 !important;
+  color: #6f5540 !important;
+  transition: background-color .22s ease, color .22s ease, transform .22s ease !important;
+}
+.omb-auth-choice:hover:not(:disabled) .omb-auth-choice-icon {
+  background: #eadfce !important;
+  color: #5d4635 !important;
+  transform: scale(1.035);
+}
+html[data-theme="dark"] .omb-auth-choice:hover:not(:disabled) {
+  background: #15120f !important;
+  border-color: rgba(214, 190, 160, .34) !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .22);
+}
+html[data-theme="dark"] .omb-auth-choice-icon {
+  background: #f1e8dc !important;
+  color: #6f5540 !important;
+}
+html[data-theme="dark"] .omb-auth-choice:hover:not(:disabled) .omb-auth-choice-icon {
+  background: #e5d6c2 !important;
+  color: #5a4332 !important;
+}
+
+.omb-trust-icon {
+  background: #fbf8f2 !important;
+  color: #765a43 !important;
+}
+.group:hover .omb-trust-icon {
+  background: #eadfce !important;
+  color: #5d4635 !important;
+  box-shadow: 0 8px 24px rgba(78, 58, 41, .08);
+}
+html[data-theme="dark"] .omb-trust-icon {
+  background: #1a1612 !important;
+  color: #d7bea0 !important;
+  border: 1px solid rgba(214, 190, 160, .12);
+}
+html[data-theme="dark"] .group:hover .omb-trust-icon {
+  background: #2a211a !important;
+  color: #f4eee5 !important;
+  border-color: rgba(214, 190, 160, .28);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+}

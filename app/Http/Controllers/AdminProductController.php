@@ -19,7 +19,7 @@ class AdminProductController extends Controller
 
         foreach ($data['products'] as $payload) {
             DataScope::assertProductCategoryVisible($request->user(), (string) ($payload['category'] ?? ''));
-            $this->storePayload($payload);
+            $this->storePayload($payload, $request->user()?->id);
         }
 
         return response()->json(['ok' => true, 'count' => count($data['products'])]);
@@ -45,7 +45,7 @@ class AdminProductController extends Controller
         $payload = array_merge($request->all(), $payload);
         $payload['id'] = $externalId;
         DataScope::assertProductCategoryVisible($request->user(), (string) ($payload['category'] ?? ''));
-        $product = $this->storePayload($payload);
+        $product = $this->storePayload($payload, $request->user()?->id);
         return response()->json(['product' => $product->payload]);
     }
 
@@ -64,7 +64,7 @@ class AdminProductController extends Controller
         return response()->json(['ok' => true]);
     }
 
-    private function storePayload(array $payload): Product
+    private function storePayload(array $payload, ?int $actorId = null): Product
     {
         $inventory = collect($payload['inventory'] ?? [])->map(fn ($v) => max(0, (int) $v));
         $totalStock = $inventory->sum();
@@ -73,16 +73,22 @@ class AdminProductController extends Controller
             ? ($existing?->out_of_stock_since ?: now())
             : null;
 
-        return Product::updateOrCreate(
-            ['external_id' => (string) $payload['id']],
-            [
-                'payload' => $payload,
-                'status' => $payload['status'] ?? 'active',
-                'is_summer' => (bool) ($payload['isSummer'] ?? false),
-                'is_winter' => (bool) ($payload['isWinter'] ?? false),
-                'out_of_stock_since' => $outSince,
-                'archived_at' => null,
-            ]
-        );
+        $product = Product::firstOrNew(['external_id' => (string) $payload['id']]);
+        if (! $product->exists && $actorId) {
+            $product->created_by_user_id = $actorId;
+        }
+        $product->fill([
+            'payload' => $payload,
+            'status' => $payload['status'] ?? 'active',
+            'is_summer' => (bool) ($payload['isSummer'] ?? false),
+            'is_winter' => (bool) ($payload['isWinter'] ?? false),
+            'out_of_stock_since' => $outSince,
+            'archived_at' => null,
+        ]);
+        $product->save();
+
+        return $product->fresh();
     }
 }
+
+

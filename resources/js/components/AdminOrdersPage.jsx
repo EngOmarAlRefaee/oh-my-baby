@@ -30,7 +30,7 @@ export default function AdminOrdersPage({ locale = "ar" }) {
   const canDispatch = hasPermission(user, "orders.dispatch");
   const canManageReturns = hasPermission(user, "orders.returns");
   const canUseDelivery = hasAnyPermission(user, ["delivery.view", "delivery.act_as"]);
-  const canViewFinance = hasPermission(user, "finance.view");
+  const canViewFinance = hasPermission(user, "commissions.self.view");
 
   async function load() {
     try {
@@ -95,7 +95,7 @@ export default function AdminOrdersPage({ locale = "ar" }) {
           <div className="flex flex-wrap gap-2">
             <a href="/admin" className="omb-btn omb-btn-secondary">{isAr ? "لوحة التحكم" : "Dashboard"}</a>
             {canUseDelivery && <a href="/delivery" className="omb-btn omb-btn-secondary">{isAr ? "لوحة التوصيل / التدخل" : "Delivery / fallback"}</a>}
-            {canViewFinance && <a href="/admin/operations" className="omb-btn omb-btn-secondary">{isAr ? "الماليات والعمولات" : "Finance & commissions"}</a>}
+            {canViewFinance && <a href="/admin/operations" className="omb-btn omb-btn-secondary">{isAr ? "عمولاتي ومستحقاتي" : "My commissions & dues"}</a>}
           </div>
         </div>
 
@@ -199,3 +199,5 @@ export default function AdminOrdersPage({ locale = "ar" }) {
     </main>
   );
 }
+
+

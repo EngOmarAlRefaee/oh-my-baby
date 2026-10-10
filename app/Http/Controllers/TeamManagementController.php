@@ -28,7 +28,7 @@ class TeamManagementController extends Controller
             ->orderBy('name')
             ->get([
                 'id', 'name', 'email', 'phone', 'role', 'is_primary_admin', 'permissions', 'data_scopes', 'permissions_updated_at',
-                'account_status', 'last_login_at', 'suspended_at', 'suspension_reason', 'created_by', 'created_at',
+                'account_status', 'storefront_access', 'last_login_at', 'suspended_at', 'suspension_reason', 'created_by', 'created_at',
             ]);
 
         if ($actor->role === 'owner') {
@@ -97,6 +97,7 @@ class TeamManagementController extends Controller
             'data_scopes.*.mode' => ['nullable', 'string', Rule::in(['all', 'section', 'assigned', 'related'])],
             'data_scopes.*.values' => ['nullable', 'array'],
             'data_scopes.*.values.*' => ['string', 'max:100'],
+            'storefront_access' => ['nullable', 'boolean'],
         ]);
 
         $email = $this->normalizeEmail($data['email']);
@@ -113,7 +114,13 @@ class TeamManagementController extends Controller
             ]);
         }
 
-        $user = DB::transaction(function () use ($actor, $data, $email, $phone, $permissions, $dataScopes): User {
+        // Storefront access is an Owner-only switch. Delegated staff can create accounts,
+        // but they cannot grant access outside the target account's work dashboard.
+        $storefrontAccess = $data['role'] === 'customer'
+            ? true
+            : ($actor->role === 'owner' ? (bool) ($data['storefront_access'] ?? false) : false);
+
+        $user = DB::transaction(function () use ($actor, $data, $email, $phone, $permissions, $dataScopes, $storefrontAccess): User {
             $user = new User();
             $user->forceFill([
                 'name' => trim($data['name']),
@@ -127,6 +134,7 @@ class TeamManagementController extends Controller
                 'permissions_updated_by' => $actor->id,
                 'is_primary_admin' => false,
                 'account_status' => 'active',
+                'storefront_access' => $storefrontAccess,
                 'created_by' => $actor->id,
             ]);
             $user->save();
@@ -134,6 +142,7 @@ class TeamManagementController extends Controller
             $this->log($actor, $user, 'staff_created', 'Created '.$user->role.' account.', [
                 'permissions' => $user->permissions ?? [],
                 'data_scopes' => $user->data_scopes ?? [],
+                'storefront_access' => (bool) $user->storefront_access,
             ]);
 
             return $user;
@@ -141,7 +150,7 @@ class TeamManagementController extends Controller
 
         return response()->json([
             'message' => 'Account created.',
-            'user' => $user->only(['id', 'name', 'email', 'phone', 'role', 'is_primary_admin', 'permissions', 'data_scopes', 'account_status']),
+            'user' => $user->only(['id', 'name', 'email', 'phone', 'role', 'is_primary_admin', 'permissions', 'data_scopes', 'account_status', 'storefront_access']),
         ], 201);
     }
 
@@ -162,13 +171,14 @@ class TeamManagementController extends Controller
             'data_scopes.*.mode' => ['nullable', 'string', Rule::in(['all', 'section', 'assigned', 'related'])],
             'data_scopes.*.values' => ['nullable', 'array'],
             'data_scopes.*.values.*' => ['string', 'max:100'],
+            'storefront_access' => ['nullable', 'boolean'],
         ]);
 
         $email = $this->normalizeEmail($data['email']);
         $phone = $this->normalizePhone($data['phone']);
         $this->assertIdentityAvailable($email, $phone, $user->id);
 
-        $before = $user->only(['name', 'email', 'phone', 'role', 'permissions', 'data_scopes', 'account_status', 'is_primary_admin']);
+        $before = $user->only(['name', 'email', 'phone', 'role', 'permissions', 'data_scopes', 'account_status', 'is_primary_admin', 'storefront_access']);
 
         DB::transaction(function () use ($actor, $user, $data, $email, $phone, $before): void {
             $updates = [
@@ -179,6 +189,12 @@ class TeamManagementController extends Controller
 
             if (! empty($data['password'])) {
                 $updates['password'] = $data['password'];
+            }
+
+            if ($user->role === 'customer') {
+                $updates['storefront_access'] = true;
+            } elseif ($actor->role === 'owner' && array_key_exists('storefront_access', $data)) {
+                $updates['storefront_access'] = (bool) $data['storefront_access'];
             }
 
             if (in_array($user->role, ['admin', 'delivery'], true)) {
@@ -209,14 +225,14 @@ class TeamManagementController extends Controller
 
             $this->log($actor, $user, 'account_updated', 'Updated account details and permissions.', [
                 'before' => $before,
-                'after' => $user->only(['name', 'email', 'phone', 'role', 'permissions', 'data_scopes', 'account_status', 'is_primary_admin']),
+                'after' => $user->only(['name', 'email', 'phone', 'role', 'permissions', 'data_scopes', 'account_status', 'is_primary_admin', 'storefront_access']),
                 'password_changed' => ! empty($data['password']),
             ]);
         });
 
         return response()->json([
             'message' => 'Account updated.',
-            'user' => $user->fresh()->only(['id', 'name', 'email', 'phone', 'role', 'is_primary_admin', 'permissions', 'data_scopes', 'account_status']),
+            'user' => $user->fresh()->only(['id', 'name', 'email', 'phone', 'role', 'is_primary_admin', 'permissions', 'data_scopes', 'account_status', 'storefront_access']),
         ]);
     }
 
@@ -496,10 +512,17 @@ class TeamManagementController extends Controller
             ['owner_requests', 'reviewed_by', 'reviewed_owner_requests'],
             ['catalog_products', 'created_by', 'created_products'],
             ['catalog_products', 'updated_by', 'updated_products'],
+            ['products', 'created_by_user_id', 'legacy_created_products'],
+            ['order_items', 'source_admin_user_id', 'product_sales_history'],
+            ['commission_shares', 'admin_user_id', 'commission_shares'],
             ['wishlist_items', 'user_id', 'wishlist'],
             ['product_reviews', 'user_id', 'product_reviews'],
             ['interest_poll_votes', 'user_id', 'poll_votes'],
             ['customer_feedback', 'user_id', 'customer_feedback'],
+            ['commission_transfers', 'debtor_user_id', 'commission_debt'],
+            ['financial_ledger_entries', 'account_user_id', 'financial_ledger'],
+            ['financial_settlements', 'account_user_id', 'financial_settlements'],
+            ['commission_settlement_requests', 'account_user_id', 'commission_settlement_requests'],
         ];
 
         $blockers = [];
@@ -519,3 +542,5 @@ class TeamManagementController extends Controller
         ];
     }
 }
+
+

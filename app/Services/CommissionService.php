@@ -2,49 +2,126 @@
 
 namespace App\Services;
 
+use App\Models\CommissionShare;
 use App\Models\CommissionTransfer;
+use App\Models\FinancialLedgerEntry;
 use App\Models\Order;
+use App\Models\User;
+use Illuminate\Support\Collection;
 
 class CommissionService
 {
-    public function __construct(private ShamCashService $shamCash) {}
+    public function __construct(
+        private ShamCashService $shamCash,
+        private FinancialLedgerService $ledger,
+    ) {}
 
     public function ensureForDeliveredOrder(Order $order): CommissionTransfer
     {
-        $order->loadMissing('items');
+        $order->loadMissing(['items', 'acceptedBy', 'events.actor']);
+
+        // Financial debt starts only after BOTH sides confirm: Delivery has marked
+        // the order delivered and the Customer has confirmed receipt.
+        if (! $order->delivered_at || ! $order->customer_confirmed_at) {
+            return $order->commission()->firstOrCreate(
+                ['order_id' => $order->id],
+                [
+                    'type' => 'awaiting_customer_confirmation',
+                    'amount_usd' => 0,
+                    'status' => 'awaiting_confirmation',
+                    'provider' => 'internal_ledger',
+                ],
+            );
+        }
+
         $hasDecoration = $order->items->contains(fn ($item) => $item->category === 'decor');
         $hasOffer = $order->items->contains(fn ($item) => (bool) $item->is_offer);
 
+        // Decoration uses its own settlement flow.
         if ($hasDecoration) {
-            $type = 'decoration';
-            $amount = (float) config('ohmybaby.commissions.decoration_usd', 2.5);
-            $status = 'pending';
-        } elseif ($hasOffer && config('ohmybaby.commissions.exclude_orders_with_offers', true)) {
-            $type = 'offer_excluded';
-            $amount = 0.0;
-            $status = 'excluded';
-        } else {
-            $type = 'normal_order';
-            $amount = (float) config('ohmybaby.commissions.normal_order_usd', 0.5);
-            $status = 'pending';
+            return CommissionTransfer::updateOrCreate(
+                ['order_id' => $order->id],
+                [
+                    'debtor_user_id' => null,
+                    'type' => 'decoration_deferred',
+                    'amount_usd' => (float) config('ohmybaby.commissions.decoration_usd', 2.5),
+                    'status' => 'deferred',
+                    'provider' => 'internal_ledger',
+                    'failure_reason' => null,
+                ],
+            );
         }
 
-        $commission = CommissionTransfer::firstOrCreate(
-            ['order_id' => $order->id],
-            ['type' => $type, 'amount_usd' => $amount, 'status' => $status, 'provider' => 'sham_cash'],
-        );
-
-        if ($commission->status === 'pending' && config('ohmybaby.sham_cash.auto_transfer', false) && $this->shamCash->configured()) {
-            $this->attemptTransfer($commission);
+        if ($hasOffer && config('ohmybaby.commissions.exclude_orders_with_offers', true)) {
+            return CommissionTransfer::updateOrCreate(
+                ['order_id' => $order->id],
+                [
+                    'debtor_user_id' => null,
+                    'type' => 'offer_excluded',
+                    'amount_usd' => 0,
+                    'status' => 'excluded',
+                    'provider' => 'internal_ledger',
+                    'failure_reason' => null,
+                ],
+            );
         }
 
-        return $commission->refresh();
+        $amount = (float) config('ohmybaby.commissions.normal_order_usd', 0.5);
+        $participants = $this->participantAdmins($order);
+        $hasOwnershipSnapshot = $order->items->contains(fn ($item) => ! is_null($item->source_admin_user_id));
+
+        // Backward compatibility only for genuinely old orders that have no
+        // product-owner snapshot at all. Never charge the order-accepting Admin
+        // for a product explicitly owned by Owner/non-Admin.
+        if ($participants->isEmpty() && ! $hasOwnershipSnapshot) {
+            $legacyDebtor = $this->resolveLegacyDebtor($order);
+            if ($legacyDebtor) {
+                $participants = collect([$legacyDebtor]);
+            }
+        }
+
+        $singleDebtor = $participants->count() === 1 ? $participants->first() : null;
+        $commission = CommissionTransfer::firstOrNew(['order_id' => $order->id]);
+        $commission->fill([
+            'debtor_user_id' => $singleDebtor?->id,
+            'type' => 'normal_order',
+            'amount_usd' => $amount,
+            'provider' => 'internal_ledger',
+            'failure_reason' => $participants->isNotEmpty()
+                ? null
+                : 'No product-owner Admin could be resolved for this order.',
+        ]);
+
+        if (! $commission->exists || in_array($commission->status, ['awaiting_confirmation', 'unassigned', 'pending'], true)) {
+            $commission->status = $participants->isNotEmpty() ? 'pending' : 'unassigned';
+        }
+        $commission->save();
+
+        if ($participants->isNotEmpty() && $amount > 0) {
+            $shares = $this->syncShares($order, $commission, $participants, $amount);
+
+            // Existing historical commissions may already have one pre-split ledger charge.
+            // Do not duplicate that debt when this code is deployed over old production data.
+            $hasLegacyCharge = FinancialLedgerEntry::query()
+                ->where('commission_transfer_id', $commission->id)
+                ->where('type', 'commission')
+                ->whereNull('commission_share_id')
+                ->exists();
+
+            if (! $hasLegacyCharge) {
+                foreach ($shares as $share) {
+                    $this->ledger->accrueCommissionShare($order, $commission, $share);
+                }
+            }
+        }
+
+        return $commission->refresh()->load('shares.admin:id,name,email');
     }
 
     public function attemptTransfer(CommissionTransfer $commission, ?string $pin = null): CommissionTransfer
     {
         if ((float) $commission->amount_usd <= 0) return $commission;
-        if ($commission->status !== 'pending') return $commission;
+        if (! in_array($commission->status, ['pending', 'partially_paid'], true)) return $commission;
 
         $commission->update(['status' => 'processing', 'failure_reason' => null]);
 
@@ -62,27 +139,111 @@ class CommissionService
 
         return $commission->refresh();
     }
+
     public function reverseForReturnedOrder(Order $order, string $reason = 'Order returned'): ?CommissionTransfer
     {
         $commission = $order->commission()->first();
         if (! $commission) return null;
-        if (in_array($commission->status, ['excluded', 'reversed'], true)) return $commission;
+        if (in_array($commission->status, ['excluded', 'deferred', 'reversed'], true)) return $commission;
 
-        if ($commission->status === 'paid') {
-            $commission->update([
-                'status' => 'reversal_required',
-                'reversed_at' => now(),
-                'reversal_reason' => $reason,
-            ]);
-        } else {
-            $commission->update([
-                'status' => 'reversed',
-                'reversed_at' => now(),
-                'reversal_reason' => $reason,
-            ]);
-        }
+        // Keep original debts immutable. Reversal creates positive ledger entries
+        // for every Admin share that was charged on this order.
+        $this->ledger->reverseCommission($commission, $reason);
 
-        return $commission->refresh();
+        $commission->shares()->update([
+            'status' => 'reversed',
+            'reversed_at' => now(),
+        ]);
+        $commission->update([
+            'status' => 'reversed',
+            'reversed_at' => now(),
+            'reversal_reason' => $reason,
+        ]);
+
+        return $commission->refresh()->load('shares');
     }
 
+    /** @return Collection<int, User> */
+    private function participantAdmins(Order $order): Collection
+    {
+        $ids = $order->items
+            ->pluck('source_admin_user_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->sort()
+            ->values();
+
+        if ($ids->isEmpty()) return collect();
+
+        $users = User::query()
+            ->whereIn('id', $ids)
+            ->where('role', 'admin')
+            ->get()
+            ->keyBy('id');
+
+        return $ids
+            ->map(fn (int $id) => $users->get($id))
+            ->filter()
+            ->values();
+    }
+
+    /** @return Collection<int, CommissionShare> */
+    private function syncShares(Order $order, CommissionTransfer $commission, Collection $participants, float $amount): Collection
+    {
+        $participantIds = $participants->pluck('id')->map(fn ($id) => (int) $id)->sort()->values();
+        $totalUnits = (int) round($amount * 10000);
+        $count = max(1, $participantIds->count());
+        $baseUnits = intdiv($totalUnits, $count);
+        $remainder = $totalUnits % $count;
+
+        $shares = collect();
+        foreach ($participantIds as $index => $adminId) {
+            // Keep four decimals internally: 2 Admins => 0.2500 each,
+            // 4 Admins => 0.1250 each, 3 Admins => 0.1667/0.1667/0.1666.
+            $units = $baseUnits + ($index < $remainder ? 1 : 0);
+            $share = CommissionShare::firstOrNew([
+                'commission_transfer_id' => $commission->id,
+                'admin_user_id' => $adminId,
+            ]);
+            $share->order_id = $order->id;
+            $share->amount_usd = $units / 10000;
+            if (! $share->exists) {
+                $share->status = 'pending';
+                $share->paid_usd = 0;
+            }
+            $share->save();
+            $shares->push($share);
+        }
+
+        return $shares;
+    }
+
+    private function resolveLegacyDebtor(Order $order): ?User
+    {
+        if ($order->accepted_by_user_id) {
+            $actor = $order->acceptedBy;
+            return $actor?->role === 'admin' ? $actor : null;
+        }
+
+        $event = $order->events
+            ->where('event', 'order_accepted')
+            ->sortByDesc('id')
+            ->first();
+
+        if ($event) {
+            return $event->actor?->role === 'admin' ? $event->actor : null;
+        }
+
+        return User::query()
+            ->where('role', 'admin')
+            ->where('account_status', 'active')
+            ->where('is_primary_admin', true)
+            ->first()
+            ?? User::query()
+                ->where('role', 'admin')
+                ->where('account_status', 'active')
+                ->oldest('id')
+                ->first();
+    }
 }

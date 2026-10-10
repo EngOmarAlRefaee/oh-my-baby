@@ -218,7 +218,11 @@ export default function Header({
       ? "/owner"
       : authUser?.role === "admin"
         ? "/admin"
-        : null;
+        : authUser?.role === "delivery"
+          ? "/delivery"
+          : authUser?.role === "customer"
+            ? "/customer"
+            : null;
 
   const promoMessages = useMemo(() => {
     const base = (isAr ? promoMessagesAr : promoMessagesEn).filter(

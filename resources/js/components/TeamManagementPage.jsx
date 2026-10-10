@@ -67,6 +67,50 @@ function removePermissionAndDependents(codes, removedCode, dependencies = {}) {
   return Array.from(next);
 }
 
+function StorefrontAccessSelector({ value = false, onChange, locale = "ar" }) {
+  const isAr = locale === "ar";
+  const options = [
+    {
+      value: false,
+      title: isAr ? "لوحة التحكم فقط" : "Dashboard only",
+      body: isAr ? "الحساب يبقى داخل مساحة العمل الخاصة فيه حتى يسجل خروج." : "Keep this account inside its work dashboard until sign-out.",
+    },
+    {
+      value: true,
+      title: isAr ? "لوحة التحكم + دخول المتجر" : "Dashboard + storefront",
+      body: isAr ? "يسمح للحساب يفتح الموقع العام ويتصفح المتجر وهو مسجل دخول." : "Allow this account to browse the public storefront while signed in.",
+    },
+  ];
+
+  return (
+    <div className="border border-espresso/10 bg-milk p-4">
+      <p className="text-xs font-black text-aubergine/60">WORKSPACE ACCESS</p>
+      <h3 className="mt-1 text-base font-black text-espresso">{isAr ? "مكان عمل الحساب" : "Account workspace"}</h3>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        {options.map((option) => {
+          const active = Boolean(value) === option.value;
+          return (
+            <button
+              key={String(option.value)}
+              type="button"
+              onClick={() => onChange(option.value)}
+              className={`border p-4 text-start transition ${active ? "border-aubergine bg-aubergine/5" : "border-espresso/10 bg-oat/10 hover:border-aubergine/30"}`}
+            >
+              <span className="flex items-center gap-2 text-sm font-black">
+                <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full border ${active ? "border-aubergine" : "border-espresso/25"}`}>
+                  {active && <span className="h-2 w-2 rounded-full bg-aubergine" />}
+                </span>
+                {option.title}
+              </span>
+              <span className="mt-2 block text-xs leading-6 text-espresso/50">{option.body}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function PermissionSelector({ groups = [], value = [], onChange, locale = "ar", disabled = false, dependencies = {} }) {
   const isAr = locale === "ar";
   const allCodes = permissionCodes(groups);
@@ -265,6 +309,7 @@ export default function TeamManagementPage({ locale = "ar" }) {
   const [filter, setFilter] = useState("staff");
   const [editingUser, setEditingUser] = useState(null);
   const [editForm, setEditForm] = useState(null);
+  const [createStep, setCreateStep] = useState(0);
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -273,6 +318,7 @@ export default function TeamManagementPage({ locale = "ar" }) {
     password: "",
     permissions: [],
     data_scopes: {},
+    storefront_access: false,
   });
 
   const load = async () => {
@@ -318,6 +364,7 @@ export default function TeamManagementPage({ locale = "ar" }) {
         role: data.creatable_roles?.[0] || "customer",
         permissions: [],
         data_scopes: data.scope_defaults?.[data.creatable_roles?.[0]] || {},
+        storefront_access: data.creatable_roles?.[0] === "customer",
       }));
     }
   }, [data]);
@@ -336,10 +383,77 @@ export default function TeamManagementPage({ locale = "ar" }) {
 
   const groupsFor = (role) => data?.permission_groups?.[role] || [];
 
+  const createPermissionGroups = groupsFor(form.role);
+  const createScopeDomains = relevantScopeDomains(form.role, form.permissions)
+    .filter((domain) => data?.scope_definitions?.[form.role]?.[domain]);
+  const createWizardSteps = [
+    {
+      key: "account",
+      type: "account",
+      title: isAr ? "بيانات الحساب" : "Account details",
+      short: isAr ? "البيانات" : "Details",
+    },
+    ...(data?.viewer_role === "owner" && ["admin", "delivery"].includes(form.role) ? [{
+      key: "workspace",
+      type: "workspace",
+      title: isAr ? "دخول الحساب" : "Workspace access",
+      short: isAr ? "الدخول" : "Access",
+    }] : []),
+    ...(["admin", "delivery"].includes(form.role) ? createPermissionGroups.map((group) => ({
+      key: `permission:${group.key}`,
+      type: "permission",
+      group,
+      title: isAr ? group.title_ar : group.title_en,
+      short: isAr ? group.title_ar : group.title_en,
+    })) : []),
+    ...(["admin", "delivery"].includes(form.role) && createScopeDomains.length ? [{
+      key: "scope",
+      type: "scope",
+      title: isAr ? "نطاق البيانات" : "Data scope",
+      short: isAr ? "النطاق" : "Scope",
+    }] : []),
+    {
+      key: "review",
+      type: "review",
+      title: isAr ? "مراجعة وإنشاء" : "Review & create",
+      short: isAr ? "المراجعة" : "Review",
+    },
+  ];
+  const safeCreateStep = Math.min(createStep, Math.max(createWizardSteps.length - 1, 0));
+  const activeCreateStep = createWizardSteps[safeCreateStep] || createWizardSteps[0];
+
+  useEffect(() => {
+    if (createStep !== safeCreateStep) setCreateStep(safeCreateStep);
+  }, [createStep, safeCreateStep]);
+
   const setCreateRole = (role) => {
-    setForm((current) => ({ ...current, role, permissions: [], data_scopes: data?.scope_defaults?.[role] || {} }));
+    setForm((current) => ({ ...current, role, permissions: [], data_scopes: data?.scope_defaults?.[role] || {}, storefront_access: role === "customer" }));
     setError("");
     setSuccess("");
+    setCreateStep(0);
+  };
+
+  const validateCreateAccountStep = () => {
+    if (!form.name.trim()) return isAr ? "اكتب اسم الحساب قبل المتابعة." : "Enter the account name before continuing.";
+    if (!form.email.trim()) return isAr ? "اكتب البريد الإلكتروني قبل المتابعة." : "Enter the email before continuing.";
+    if (!form.phone.trim()) return isAr ? "اكتب رقم الهاتف قبل المتابعة." : "Enter the phone number before continuing.";
+    if (!form.password || form.password.length < 8) return isAr ? "كلمة المرور لازم تكون 8 أحرف على الأقل." : "Password must be at least 8 characters.";
+    return "";
+  };
+
+  const goCreateNext = () => {
+    setError("");
+    setSuccess("");
+    if (activeCreateStep?.type === "account") {
+      const message = validateCreateAccountStep();
+      if (message) { setError(message); return; }
+    }
+    setCreateStep((current) => Math.min(current + 1, createWizardSteps.length - 1));
+  };
+
+  const goCreateBack = () => {
+    setError("");
+    setCreateStep((current) => Math.max(current - 1, 0));
   };
 
   const createAccount = async (e) => {
@@ -357,7 +471,8 @@ export default function TeamManagementPage({ locale = "ar" }) {
     try {
       await apiFetch("/api/team", { method: "POST", body: JSON.stringify(form) });
       const nextRole = data.creatable_roles?.[0] || "customer";
-      setForm({ name: "", email: "", phone: "", role: nextRole, password: "", permissions: [], data_scopes: data.scope_defaults?.[nextRole] || {} });
+      setForm({ name: "", email: "", phone: "", role: nextRole, password: "", permissions: [], data_scopes: data.scope_defaults?.[nextRole] || {}, storefront_access: nextRole === "customer" });
+      setCreateStep(0);
       setSuccess(isAr ? "تم إنشاء الحساب مع الصلاحيات المختارة." : "Account created with the selected permissions.");
       await load();
     } catch (e) {
@@ -377,6 +492,7 @@ export default function TeamManagementPage({ locale = "ar" }) {
       password: "",
       permissions: user.permissions || [],
       data_scopes: user.data_scopes || data?.scope_defaults?.[user.role] || {},
+      storefront_access: Boolean(user.storefront_access),
     });
     setError("");
     setSuccess("");
@@ -547,8 +663,8 @@ export default function TeamManagementPage({ locale = "ar" }) {
   const canSuspendTarget = (user) => canManageTarget(user) && viewerHas("team.suspend_accounts");
 
   return (
-    <main className="min-h-[75vh] bg-milk px-5 py-12" dir={isAr ? "rtl" : "ltr"}>
-      <div className="mx-auto max-w-7xl">
+    <main className="min-h-[75vh] overflow-x-hidden bg-milk px-4 py-10 sm:px-5 sm:py-12" dir={isAr ? "rtl" : "ltr"}>
+      <div className="mx-auto w-full max-w-6xl min-w-0">
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div>
             <p className="omb-eyebrow-label text-aubergine/65">OH MY BABY — TEAM & PERMISSIONS</p>
@@ -581,63 +697,177 @@ export default function TeamManagementPage({ locale = "ar" }) {
               </button>
             </section>
 
-            <div className={`mt-8 grid gap-6 ${(data.creatable_roles || []).length ? "xl:grid-cols-[.9fr_1.45fr]" : "grid-cols-1"}`}>
-              {(data.creatable_roles || []).length ? <form onSubmit={createAccount} className="border border-espresso/10 bg-oat/15 p-5 sm:p-6">
-                <p className="text-xs font-black text-aubergine/60">NEW ACCOUNT</p>
-                <h2 className="mt-2 text-xl font-black">{isAr ? "إنشاء حساب جديد" : "Create a new account"}</h2>
+            <div className="mt-8 grid min-w-0 grid-cols-1 gap-6">
+              {(data.creatable_roles || []).length ? <form onSubmit={(e) => { e.preventDefault(); if (activeCreateStep?.type === "review") createAccount(e); else goCreateNext(); }} className="mx-auto w-full max-w-3xl min-w-0 border border-espresso/10 bg-oat/15 p-4 sm:p-6">
+                <p className="text-xs font-black text-aubergine/60">NEW ACCOUNT WIZARD</p>
+                <h2 className="mt-2 text-xl font-black">{isAr ? "إنشاء حساب خطوة بخطوة" : "Create account step by step"}</h2>
                 <p className="mt-2 text-xs leading-6 text-espresso/50">
-                  {isAr ? "اختَر نوع الحساب أولاً، وبعدها حدد الصلاحيات اللي بدك تعطيها إله." : "Choose the account type, then grant only the permissions it needs."}
+                  {isAr ? "كل قسم إله مرحلة مستقلة حتى تمر على كل الصلاحيات وما تنسى شي." : "Each section has its own step so every permission is reviewed before creation."}
                 </p>
 
-                <div className="mt-5 grid gap-3">
-                  <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={isAr ? "الاسم" : "Name"} className="border border-espresso/15 bg-milk px-4 py-3 text-sm outline-none focus:border-aubergine" />
-                  <input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="Email" className="border border-espresso/15 bg-milk px-4 py-3 text-sm outline-none focus:border-aubergine" />
-                  <input required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder={isAr ? "رقم الهاتف" : "Phone"} className="border border-espresso/15 bg-milk px-4 py-3 text-sm outline-none focus:border-aubergine" />
-                  <label className="grid gap-1 text-xs font-black text-espresso/60">
-                    {isAr ? "نوع الحساب" : "Account type"}
-                    <select value={form.role} onChange={(e) => setCreateRole(e.target.value)} className="border border-espresso/15 bg-milk px-4 py-3 text-sm font-bold text-espresso outline-none focus:border-aubergine">
-                      {(data.creatable_roles || []).map((role) => (
-                        <option key={role} value={role}>{role === "admin" ? "Admin" : role === "delivery" ? "Delivery" : (isAr ? "Customer — زبون" : "Customer")}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <input required minLength={8} type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={isAr ? "كلمة المرور — 8 أحرف على الأقل" : "Password — minimum 8 characters"} className="border border-espresso/15 bg-milk px-4 py-3 text-sm outline-none focus:border-aubergine" />
+                <div className="mt-5 border border-espresso/10 bg-milk p-3">
+                  <div className="flex items-center justify-between gap-3 text-[11px] font-black text-espresso/50">
+                    <span>{isAr ? `المرحلة ${safeCreateStep + 1} من ${createWizardSteps.length}` : `Step ${safeCreateStep + 1} of ${createWizardSteps.length}`}</span>
+                    <span className="text-aubergine">{activeCreateStep?.title}</span>
+                  </div>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-espresso/10">
+                    <div className="h-full rounded-full bg-aubergine transition-all" style={{ width: `${((safeCreateStep + 1) / createWizardSteps.length) * 100}%` }} />
+                  </div>
+                  <div className="mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
+                    {createWizardSteps.map((step, index) => (
+                      <button
+                        key={step.key}
+                        type="button"
+                        onClick={() => { if (index <= safeCreateStep) { setCreateStep(index); setError(""); } }}
+                        disabled={index > safeCreateStep}
+                        className={`whitespace-nowrap border px-2.5 py-1.5 text-[10px] font-black ${index === safeCreateStep ? "border-aubergine bg-aubergine/5 text-aubergine" : index < safeCreateStep ? "border-espresso/15 bg-oat/15 text-espresso/60" : "border-espresso/10 text-espresso/25"}`}
+                      >
+                        {index + 1}. {step.short}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
-                {["admin", "delivery"].includes(form.role) && (
+                {activeCreateStep?.type === "account" && (
                   <div className="mt-5">
+                    <h3 className="text-base font-black text-espresso">{isAr ? "1. بيانات الحساب الأساسية" : "1. Basic account details"}</h3>
+                    <p className="mt-1 text-xs leading-6 text-espresso/45">{isAr ? "حدد هوية الحساب ونوعه أولاً. تغيير النوع يعيد الصلاحيات من الصفر." : "Set the identity and role first. Changing the role resets permissions."}</p>
+                    <div className="mt-4 grid gap-3">
+                      <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={isAr ? "الاسم" : "Name"} className="border border-espresso/15 bg-milk px-4 py-3 text-sm outline-none focus:border-aubergine" />
+                      <input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="Email" className="border border-espresso/15 bg-milk px-4 py-3 text-sm outline-none focus:border-aubergine" />
+                      <input required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder={isAr ? "رقم الهاتف" : "Phone"} className="border border-espresso/15 bg-milk px-4 py-3 text-sm outline-none focus:border-aubergine" />
+                      <label className="grid gap-1 text-xs font-black text-espresso/60">
+                        {isAr ? "نوع الحساب" : "Account type"}
+                        <select value={form.role} onChange={(e) => setCreateRole(e.target.value)} className="border border-espresso/15 bg-milk px-4 py-3 text-sm font-bold text-espresso outline-none focus:border-aubergine">
+                          {(data.creatable_roles || []).map((role) => (
+                            <option key={role} value={role}>{role === "admin" ? "Admin" : role === "delivery" ? "Delivery" : (isAr ? "Customer — زبون" : "Customer")}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <input required minLength={8} type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={isAr ? "كلمة المرور — 8 أحرف على الأقل" : "Password — minimum 8 characters"} className="border border-espresso/15 bg-milk px-4 py-3 text-sm outline-none focus:border-aubergine" />
+                    </div>
+                    {form.role === "customer" && (
+                      <div className="mt-4 border border-espresso/10 bg-milk p-4 text-sm leading-7 text-espresso/55">
+                        {isAr ? "حساب الزبون ما إله صلاحيات إدارية، لذلك بعد هالمرحلة بتنتقل مباشرة للمراجعة." : "Customer accounts have no administrative permissions, so the wizard goes directly to review."}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeCreateStep?.type === "workspace" && (
+                  <div className="mt-5">
+                    <p className="mb-3 text-xs leading-6 text-espresso/45">{isAr ? "حدد إذا الحساب يبقى داخل لوحة عمله فقط أو يقدر يدخل المتجر أيضاً." : "Choose whether the account stays in its dashboard or may also browse the storefront."}</p>
+                    <StorefrontAccessSelector
+                      value={form.storefront_access}
+                      onChange={(storefront_access) => setForm((current) => ({ ...current, storefront_access }))}
+                      locale={locale}
+                    />
+                  </div>
+                )}
+
+                {activeCreateStep?.type === "permission" && activeCreateStep.group && (
+                  <div className="mt-5">
+                    <p className="mb-3 text-xs leading-6 text-espresso/45">
+                      {isAr ? "راجع هالقسم لحاله. إذا الحساب ما لازم يدخل عليه، اترك كل خاناته بدون تحديد واضغط التالي." : "Review this section on its own. Leave everything unchecked if the account should not access it."}
+                    </p>
                     <PermissionSelector
-                      groups={groupsFor(form.role)}
+                      groups={[activeCreateStep.group]}
                       value={form.permissions}
                       onChange={(permissions) => setForm((current) => ({ ...current, permissions }))}
                       locale={locale}
                       dependencies={data.permission_dependencies || {}}
                     />
-                    <div className="mt-4">
-                      <DataScopeSelector
-                        role={form.role}
-                        permissions={form.permissions}
-                        value={form.data_scopes}
-                        onChange={(data_scopes) => setForm((current) => ({ ...current, data_scopes }))}
-                        data={data}
-                        locale={locale}
-                      />
-                    </div>
                   </div>
                 )}
 
-                {form.role === "customer" && (
-                  <div className="mt-5 border border-espresso/10 bg-milk p-4 text-sm leading-7 text-espresso/55">
-                    {isAr ? "حساب الزبون ما إله صلاحيات إدارية. بيستخدم الطلبات والمكافآت وحسابه الشخصي فقط." : "Customer accounts do not receive administrative permissions."}
+                {activeCreateStep?.type === "scope" && (
+                  <div className="mt-5">
+                    <DataScopeSelector
+                      role={form.role}
+                      permissions={form.permissions}
+                      value={form.data_scopes}
+                      onChange={(data_scopes) => setForm((current) => ({ ...current, data_scopes }))}
+                      data={data}
+                      locale={locale}
+                    />
                   </div>
                 )}
 
-                <button disabled={busy} className="omb-btn omb-btn-primary mt-5 w-full disabled:opacity-50">
-                  {busy ? (isAr ? "لحظة..." : "Please wait...") : (isAr ? "إنشاء الحساب بالصلاحيات المحددة" : "Create account with permissions")}
-                </button>
+                {activeCreateStep?.type === "review" && (
+                  <div className="mt-5 grid gap-4">
+                    <section className="border border-espresso/10 bg-milk p-4">
+                      <p className="text-xs font-black text-aubergine/60">ACCOUNT</p>
+                      <div className="mt-3 grid gap-2 text-sm text-espresso/65">
+                        <p><strong className="text-espresso">{isAr ? "الاسم:" : "Name:"}</strong> {form.name || "—"}</p>
+                        <p><strong className="text-espresso">Email:</strong> {form.email || "—"}</p>
+                        <p><strong className="text-espresso">{isAr ? "الهاتف:" : "Phone:"}</strong> {form.phone || "—"}</p>
+                        <p><strong className="text-espresso">{isAr ? "النوع:" : "Role:"}</strong> {form.role}</p>
+                        {["admin", "delivery"].includes(form.role) && <p><strong className="text-espresso">{isAr ? "الدخول:" : "Access:"}</strong> {form.storefront_access ? (isAr ? "لوحة التحكم + المتجر" : "Dashboard + storefront") : (isAr ? "لوحة التحكم فقط" : "Dashboard only")}</p>}
+                      </div>
+                    </section>
+
+                    {["admin", "delivery"].includes(form.role) && (
+                      <section className="border border-espresso/10 bg-milk p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-xs font-black text-aubergine/60">{isAr ? "ملخص الصلاحيات" : "PERMISSIONS SUMMARY"}</p>
+                          <strong className="text-sm text-espresso">{form.permissions.length}</strong>
+                        </div>
+                        <div className="mt-3 grid gap-3">
+                          {createPermissionGroups.map((group) => {
+                            const chosen = (group.items || []).filter((item) => form.permissions.includes(item.code));
+                            return (
+                              <div key={group.key} className="border-t border-espresso/10 pt-3 first:border-0 first:pt-0">
+                                <div className="flex items-center justify-between gap-3">
+                                  <strong className="text-sm text-espresso">{isAr ? group.title_ar : group.title_en}</strong>
+                                  <span className={`text-[11px] font-black ${chosen.length ? "text-emerald-700" : "text-espresso/35"}`}>{chosen.length ? (isAr ? `${chosen.length} مفعلة` : `${chosen.length} enabled`) : (isAr ? "بدون صلاحيات" : "No access")}</span>
+                                </div>
+                                {chosen.length > 0 && <p className="mt-1 text-xs leading-6 text-espresso/50">{chosen.map((item) => isAr ? item.ar : item.en).join(isAr ? "، " : ", ")}</p>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </section>
+                    )}
+
+                    {createScopeDomains.length > 0 && (
+                      <section className="border border-espresso/10 bg-milk p-4">
+                        <p className="text-xs font-black text-aubergine/60">DATA SCOPE</p>
+                        <div className="mt-3 grid gap-2 text-xs text-espresso/60">
+                          {createScopeDomains.map((domain) => {
+                            const def = data?.scope_definitions?.[form.role]?.[domain];
+                            const scope = form.data_scopes?.[domain] || { mode: def?.default, values: [] };
+                            const modeLabel = data?.scope_mode_labels?.[scope.mode];
+                            return <p key={domain}><strong className="text-espresso">{isAr ? def?.ar : def?.en}:</strong> {(isAr ? modeLabel?.ar : modeLabel?.en) || scope.mode}</p>;
+                          })}
+                        </div>
+                      </section>
+                    )}
+
+                    {["admin", "delivery"].includes(form.role) && !form.permissions.length && (
+                      <div className="border border-amber-300 bg-amber-50 p-3 text-xs font-black leading-6 text-amber-800">
+                        {isAr ? "لازم تختار صلاحية واحدة على الأقل قبل إنشاء حساب موظف." : "Choose at least one permission before creating a staff account."}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="mt-6 flex items-center justify-between gap-3 border-t border-espresso/10 pt-4">
+                  <button type="button" onClick={goCreateBack} disabled={safeCreateStep === 0 || busy} className="omb-btn omb-btn-secondary disabled:opacity-35">
+                    {isAr ? "السابق" : "Back"}
+                  </button>
+                  {activeCreateStep?.type === "review" ? (
+                    <button type="submit" disabled={busy || (["admin", "delivery"].includes(form.role) && !form.permissions.length)} className="omb-btn omb-btn-primary disabled:opacity-50">
+                      {busy ? (isAr ? "جاري إنشاء الحساب..." : "Creating...") : (isAr ? "تأكيد وإنشاء الحساب" : "Confirm & create account")}
+                    </button>
+                  ) : (
+                    <button type="submit" disabled={busy} className="omb-btn omb-btn-primary disabled:opacity-50">
+                      {isAr ? "التالي" : "Next"}
+                    </button>
+                  )}
+                </div>
               </form> : null}
 
-              <section className="border border-espresso/10 bg-milk p-5 sm:p-6">
+              <section className="mx-auto w-full max-w-5xl min-w-0 border border-espresso/10 bg-milk p-4 sm:p-6">
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div><p className="text-xs font-black text-aubergine/60">EXISTING ACCOUNTS</p><h2 className="mt-1 text-xl font-black">{isAr ? "الحسابات الموجودة" : "Existing accounts"}</h2></div>
                   <select value={filter} onChange={(e) => setFilter(e.target.value)} className="border border-espresso/15 bg-milk px-3 py-2 text-xs font-black">
@@ -668,6 +898,13 @@ export default function TeamManagementPage({ locale = "ar" }) {
                               {isAr
                                 ? `${(user.permissions || []).length} صلاحية مفعلة${user.is_primary_admin ? " · إدمن رئيسي" : ""}`
                                 : `${(user.permissions || []).length} permissions enabled${user.is_primary_admin ? " · Primary Admin" : ""}`}
+                            </p>
+                          )}
+                          {data.viewer_role === "owner" && ["admin", "delivery"].includes(user.role) && (
+                            <p className="mt-1 text-[11px] font-black text-espresso/45">
+                              {user.storefront_access
+                                ? (isAr ? "لوحة التحكم + دخول المتجر" : "Dashboard + storefront")
+                                : (isAr ? "لوحة التحكم فقط" : "Dashboard only")}
                             </p>
                           )}
                           {user.account_status !== "active" && user.suspension_reason && <p className="mt-2 text-xs font-bold text-red-700">{isAr ? "سبب الإيقاف:" : "Suspension reason:"} {user.suspension_reason}</p>}
@@ -757,6 +994,16 @@ export default function TeamManagementPage({ locale = "ar" }) {
               <input type="password" minLength={8} value={editForm.password} onChange={(e) => setEditForm({ ...editForm, password: e.target.value })} placeholder={isAr ? "كلمة مرور جديدة — اختياري" : "New password — optional"} className="border border-espresso/15 bg-milk px-4 py-3 text-sm outline-none focus:border-aubergine" />
             </div>
 
+            {data.viewer_role === "owner" && ["admin", "delivery"].includes(editingUser.role) && (
+              <div className="mt-5">
+                <StorefrontAccessSelector
+                  value={editForm.storefront_access}
+                  onChange={(storefront_access) => setEditForm((current) => ({ ...current, storefront_access }))}
+                  locale={locale}
+                />
+              </div>
+            )}
+
             {["admin", "delivery"].includes(editingUser.role) && (
               <div className="mt-5">
                 <PermissionSelector
@@ -804,3 +1051,5 @@ export default function TeamManagementPage({ locale = "ar" }) {
     </main>
   );
 }
+
+

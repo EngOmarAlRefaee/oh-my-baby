@@ -1,0 +1,11 @@
+OH MY BABY - Support button fixed bottom-left patch
+
+1) Copy the included resources folder over your current project folder and allow replacement.
+2) Run:
+   npm run dev
+
+If the support database migration was never applied before, also run once:
+   php artisan migrate
+
+Modified file:
+resources/js/components/SupportChatLauncher.jsx

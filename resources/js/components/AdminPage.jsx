@@ -171,7 +171,7 @@ export default function AdminPage({ locale = "ar" }) {
 
   const user = session?.user || null;
   const canViewOrders = hasPermission(user, "orders.view");
-  const canViewFinance = hasPermission(user, "finance.view");
+  const canViewFinance = hasPermission(user, "commissions.self.view");
   const canCreateProducts = hasPermission(user, "products.create");
   const canEditProducts = hasPermission(user, "products.edit");
   const canArchiveProducts = hasPermission(user, "products.archive");
@@ -259,21 +259,29 @@ export default function AdminPage({ locale = "ar" }) {
     setMessage("");
   }
 
-  function remove(productId) {
+  async function remove(productId) {
     const ok = window.confirm(
       isAr
-        ? "هل أنتِ متأكدة من حذف هذا المنتج؟ لا يمكن التراجع عن الحذف داخل هذه النسخة."
-        : "Delete this product? This cannot be undone in this prototype.",
+        ? "هل أنتِ متأكدة من حذف هذا المنتج؟"
+        : "Delete this product?",
     );
     if (!ok) return;
+
+    try {
+      await apiFetch(`/api/admin/products/${encodeURIComponent(productId)}`, { method: "DELETE" });
+    } catch (error) {
+      // A pre-database legacy product may not exist on the server yet. In that
+      // one case allow local cleanup; other errors must not be hidden.
+      if (error?.status !== 404) {
+        setMessage(isAr ? "تعذر حذف المنتج من قاعدة البيانات." : "Could not delete the product from the database.");
+        return;
+      }
+    }
+
     const next = products.filter((product) => String(product.id) !== String(productId));
     const result = saveProducts(next);
     if (!result?.ok) {
-      setMessage(
-        isAr
-          ? "تعذر حفظ الحذف داخل المتصفح. جربي تقليل حجم الصور أو أعيدي المحاولة."
-          : "The delete could not be saved in browser storage. Try reducing image size or retrying.",
-      );
+      setMessage(isAr ? "تم حذف المنتج من النظام لكن تعذر تحديث النسخة المحلية." : "The product was deleted, but local cache could not be updated.");
       return;
     }
     setProducts(next);
@@ -555,7 +563,7 @@ export default function AdminPage({ locale = "ar" }) {
     setStepIndex((current) => Math.max(0, current - 1));
   }
 
-  function save() {
+  async function save() {
     const normalized = normalizeProduct({
       ...form,
       slug:
@@ -564,19 +572,50 @@ export default function AdminPage({ locale = "ar" }) {
       price: Number(form.price || 0),
       offerPrice: form.sections.includes("offers") ? Number(form.offerPrice || 0) : null,
     });
+
+    // Server first: this is what stamps the logged-in Admin id on a newly
+    // created product. Never create a local-only product if that attribution fails.
+    try {
+      if (editing) {
+        try {
+          await apiFetch(`/api/admin/products/${encodeURIComponent(normalized.id)}`, {
+            method: "PUT",
+            body: JSON.stringify({ product: normalized }),
+          });
+        } catch (error) {
+          // Legacy local products can predate the DB catalog. Register them now;
+          // the current logged-in Admin becomes owner only if no DB record exists.
+          if (error?.status !== 404) throw error;
+          await apiFetch("/api/admin/products", {
+            method: "POST",
+            body: JSON.stringify({ product: normalized }),
+          });
+        }
+      } else {
+        await apiFetch("/api/admin/products", {
+          method: "POST",
+          body: JSON.stringify({ product: normalized }),
+        });
+      }
+    } catch (error) {
+      setMessage(
+        error?.data?.message ||
+          (isAr
+            ? "تعذر حفظ المنتج في قاعدة البيانات، لذلك لم يتم اعتماده."
+            : "The product could not be saved to the database, so it was not committed."),
+      );
+      return;
+    }
+
     const next = editing
       ? products.map((product) => (String(product.id) === String(normalized.id) ? normalized : product))
       : [normalized, ...products];
     const result = saveProducts(next);
     if (!result?.ok) {
       setMessage(
-        result?.reason === "storage-full"
-          ? isAr
-            ? "حجم الصور كبير على التخزين المؤقت الحالي. خففي حجم الصور أو عددها بهذه النسخة التجريبية ثم أعيدي الحفظ."
-            : "The uploaded images exceed this prototype's browser storage. Reduce image size/count and save again."
-          : isAr
-            ? "تعذر حفظ المنتج حالياً. البيانات ما زالت موجودة بالنموذج."
-            : "The product could not be saved. Your form data is still here.",
+        isAr
+          ? "تم حفظ المنتج في قاعدة البيانات، لكن تعذر تحديث النسخة المحلية في المتصفح. أعيدي تحميل الصفحة."
+          : "The product is saved in the database, but local browser cache could not be updated. Reload the page.",
       );
       return;
     }
@@ -614,7 +653,7 @@ export default function AdminPage({ locale = "ar" }) {
             </div>
             <div className="flex flex-wrap gap-2">
               {canViewOrders && <a href="/admin/orders" className="omb-btn omb-btn-secondary">{isAr ? "إدارة الطلبات" : "Orders"}</a>}
-              {canViewFinance && <a href="/admin/operations" className="omb-btn omb-btn-secondary">{isAr ? "الماليات والعمولات" : "Finance & commissions"}</a>}
+              {canViewFinance && <a href="/admin/operations" className="omb-btn omb-btn-secondary">{isAr ? "عمولاتي ومستحقاتي" : "My commissions & dues"}</a>}
               {canCreateProducts && (
                 <button type="button" onClick={startNew} className="omb-btn omb-btn-primary">
                   + {isAr ? "إضافة جديد" : "Add new"}
@@ -1188,3 +1227,5 @@ export default function AdminPage({ locale = "ar" }) {
     </section>
   );
 }
+
+

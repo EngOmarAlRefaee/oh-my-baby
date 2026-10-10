@@ -3,12 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Notifications\EmailVerificationCodeNotification;
+use App\Notifications\PasswordResetCodeNotification;
+use App\Services\AuthCodeService;
 use App\Support\DataScope;
 use App\Support\PermissionCatalog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
@@ -62,10 +68,11 @@ class AuthController extends Controller
             'message' => 'Signed in.',
             'user' => $this->safeUser($user),
             'redirect' => $this->dashboardForRole($user->role),
+            'verification_required' => $this->requiresEmailVerification($user),
         ]);
     }
 
-    public function register(Request $request): JsonResponse
+    public function register(Request $request, AuthCodeService $codes): JsonResponse
     {
         if ($request->filled('phone')) {
             $request->merge(['phone' => $this->normalizePhone((string) $request->input('phone'))]);
@@ -83,7 +90,7 @@ class AuthController extends Controller
                 Rule::unique('users', 'phone'),
             ],
             'email' => [
-                'nullable',
+                'required',
                 'email',
                 'max:180',
                 Rule::unique('users', 'email'),
@@ -94,35 +101,162 @@ class AuthController extends Controller
             'name.required' => 'الاسم مطلوب.',
             'phone.required' => 'رقم الهاتف مطلوب.',
             'phone.unique' => 'رقم الهاتف مستخدم من قبل.',
+            'email.required' => 'البريد الإلكتروني مطلوب لتأكيد الحساب.',
             'email.email' => 'صيغة البريد الإلكتروني غير صحيحة.',
             'email.unique' => 'البريد الإلكتروني مستخدم من قبل.',
             'password.required' => 'كلمة المرور مطلوبة.',
             'password.confirmed' => 'تأكيد كلمة المرور غير مطابق.',
         ]);
 
-        $phone = $this->normalizePhone($data['phone']);
-        $email = $data['email'] ?? null;
+        $user = DB::transaction(function () use ($data, $request) {
+            $user = User::create([
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'phone' => $this->normalizePhone($data['phone']),
+                'password' => $data['password'],
+                'role' => 'customer',
+                'storefront_access' => true,
+            ]);
 
-        $user = User::create([
-            'name' => $data['name'],
-            'email' => $email ?: $this->internalEmailForPhone($phone),
-            'phone' => $phone,
-            'password' => $data['password'],
-            'role' => 'customer',
-        ]);
+            $user->forceFill([
+                'marketing_opt_in' => $request->boolean('marketing_opt_in'),
+                'email_verified_at' => null,
+            ])->save();
 
-        $user->forceFill([
-            'marketing_opt_in' => $request->boolean('marketing_opt_in'),
-        ])->save();
+            return $user;
+        });
 
         Auth::login($user);
         $request->session()->regenerate();
 
+        $deliveryFailed = ! $this->sendVerificationCode($user, $codes);
+
         return response()->json([
-            'message' => 'Account created.',
-            'user' => $this->safeUser($user),
+            'message' => $deliveryFailed
+                ? 'تم إنشاء الحساب، لكن تعذر إرسال رمز التحقق الآن. يمكنك إعادة الإرسال من شاشة التحقق.'
+                : 'تم إنشاء الحساب وإرسال رمز التحقق إلى بريدك.',
+            'user' => $this->safeUser($user->fresh()),
             'redirect' => $this->dashboardForRole($user->role),
+            'verification_required' => true,
+            'verification_delivery_failed' => $deliveryFailed,
+            'retry_after' => AuthCodeService::RESEND_COOLDOWN_SECONDS,
         ], 201);
+    }
+
+    public function sendEmailVerification(Request $request, AuthCodeService $codes): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user, 401);
+
+        if ($user->email_verified_at) {
+            return response()->json([
+                'message' => 'البريد الإلكتروني موثق بالفعل.',
+                'verified' => true,
+            ]);
+        }
+
+        $issued = $codes->issue($user, AuthCodeService::PURPOSE_VERIFY_EMAIL);
+        $user->notify(new EmailVerificationCodeNotification($issued['code']));
+
+        return response()->json([
+            'message' => 'تم إرسال رمز التحقق إلى بريدك.',
+            'verified' => false,
+            'retry_after' => $issued['retry_after'],
+            'expires_at' => $issued['expires_at'],
+        ]);
+    }
+
+    public function verifyEmail(Request $request, AuthCodeService $codes): JsonResponse
+    {
+        $data = $request->validate([
+            'code' => ['required', 'digits:6'],
+        ], [
+            'code.required' => 'أدخل رمز التحقق.',
+            'code.digits' => 'رمز التحقق مكوّن من 6 أرقام.',
+        ]);
+
+        $user = $request->user();
+        abort_unless($user, 401);
+
+        if (! $user->email_verified_at) {
+            $codes->verify($user, AuthCodeService::PURPOSE_VERIFY_EMAIL, $data['code']);
+            $user->forceFill(['email_verified_at' => now()])->save();
+        }
+
+        return response()->json([
+            'message' => 'تم توثيق البريد الإلكتروني بنجاح.',
+            'user' => $this->safeUser($user->fresh()),
+            'verified' => true,
+            'redirect' => $this->dashboardForRole($user->role),
+        ]);
+    }
+
+    public function forgotPassword(Request $request, AuthCodeService $codes): JsonResponse
+    {
+        $data = $request->validate([
+            'email' => ['required', 'email', 'max:180'],
+        ], [
+            'email.required' => 'أدخل البريد الإلكتروني.',
+            'email.email' => 'صيغة البريد الإلكتروني غير صحيحة.',
+        ]);
+
+        $email = mb_strtolower(trim($data['email']));
+        $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
+
+        if ($user && ! $this->isInternalPhoneEmail($user->email)) {
+            try {
+                $issued = $codes->issue($user, AuthCodeService::PURPOSE_PASSWORD_RESET);
+                $user->notify(new PasswordResetCodeNotification($issued['code']));
+            } catch (\Throwable $error) {
+                // Keep the response generic so the endpoint never exposes whether an email exists.
+                report($error);
+            }
+        }
+
+        return response()->json([
+            'message' => 'إذا كان البريد مسجلاً لدينا، سيصلك رمز إعادة تعيين كلمة المرور.',
+            'retry_after' => AuthCodeService::RESEND_COOLDOWN_SECONDS,
+        ]);
+    }
+
+    public function resetPassword(Request $request, AuthCodeService $codes): JsonResponse
+    {
+        $data = $request->validate([
+            'email' => ['required', 'email', 'max:180'],
+            'code' => ['required', 'digits:6'],
+            'password' => ['required', 'confirmed', Password::min(8)],
+        ], [
+            'email.required' => 'أدخل البريد الإلكتروني.',
+            'email.email' => 'صيغة البريد الإلكتروني غير صحيحة.',
+            'code.required' => 'أدخل رمز الاسترجاع.',
+            'code.digits' => 'رمز الاسترجاع مكوّن من 6 أرقام.',
+            'password.required' => 'كلمة المرور الجديدة مطلوبة.',
+            'password.confirmed' => 'تأكيد كلمة المرور غير مطابق.',
+        ]);
+
+        $email = mb_strtolower(trim($data['email']));
+        $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
+
+        if (! $user || $this->isInternalPhoneEmail($user->email)) {
+            return response()->json([
+                'message' => 'رمز الاسترجاع غير صحيح أو منتهي الصلاحية.',
+            ], 422);
+        }
+
+        $codes->verify($user, AuthCodeService::PURPOSE_PASSWORD_RESET, $data['code']);
+
+        DB::transaction(function () use ($user, $data) {
+            $user->forceFill([
+                'password' => $data['password'],
+                'remember_token' => Str::random(60),
+            ])->save();
+
+            DB::table('sessions')->where('user_id', $user->id)->delete();
+        });
+
+        return response()->json([
+            'message' => 'تم تغيير كلمة المرور. يمكنك تسجيل الدخول بكلمة المرور الجديدة.',
+        ]);
     }
 
     public function logout(Request $request): JsonResponse
@@ -132,6 +266,30 @@ class AuthController extends Controller
         $request->session()->regenerateToken();
 
         return response()->json(['message' => 'Signed out.']);
+    }
+
+    private function sendVerificationCode(User $user, AuthCodeService $codes): bool
+    {
+        try {
+            $issued = $codes->issue($user, AuthCodeService::PURPOSE_VERIFY_EMAIL);
+            $user->notify(new EmailVerificationCodeNotification($issued['code']));
+
+            return true;
+        } catch (\Throwable $error) {
+            Log::warning('Unable to send email verification code.', [
+                'user_id' => $user->id,
+                'error' => $error->getMessage(),
+            ]);
+
+            return false;
+        }
+    }
+
+    private function requiresEmailVerification(User $user): bool
+    {
+        return $user->role === 'customer'
+            && ! $this->isInternalPhoneEmail($user->email)
+            && ! $user->email_verified_at;
     }
 
     private function normalizePhone(string $phone): string
@@ -160,6 +318,7 @@ class AuthController extends Controller
             'owner' => '/owner',
             'admin' => '/admin',
             'delivery' => '/delivery',
+            'customer' => '/customer',
             default => '/account',
         };
     }
@@ -174,11 +333,14 @@ class AuthController extends Controller
             'role' => $user->role,
             'is_primary_admin' => (bool) ($user->is_primary_admin ?? false),
             'account_status' => $user->account_status ?? 'active',
+            'storefront_access' => (bool) ($user->storefront_access ?? in_array($user->role, ['owner', 'customer'], true)),
             'effective_permissions' => PermissionCatalog::effectiveFor($user),
             'effective_data_scopes' => DataScope::effectiveFor($user),
             'avatar_url' => $user->avatar_url,
             'google_connected' => filled($user->google_id),
             'marketing_opt_in' => (bool) ($user->marketing_opt_in ?? false),
+            'email_verified' => (bool) $user->email_verified_at,
+            'email_verification_required' => $this->requiresEmailVerification($user),
         ];
     }
 }

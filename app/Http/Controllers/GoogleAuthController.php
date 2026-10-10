@@ -74,12 +74,14 @@ class GoogleAuthController extends Controller
                 throw new RuntimeException('Staff accounts cannot be converted into customer Google accounts.');
             }
 
-            $user ??= new User(['email' => $profile['email'], 'role' => 'customer']);
+            $user ??= new User(['email' => $profile['email'], 'role' => 'customer', 'storefront_access' => true]);
             $user->fill([
                 'name' => $profile['name'] ?? $profile['email'],
                 'google_id' => $profile['sub'],
                 'avatar_url' => $profile['picture'] ?? null,
+                'storefront_access' => true,
             ]);
+            $user->email_verified_at = $user->email_verified_at ?: now();
             if (! $user->exists) $user->password = Str::random(48);
             $user->save();
 

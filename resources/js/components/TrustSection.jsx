@@ -75,7 +75,7 @@ export default function TrustSection({ locale = "ar" }) {
                                 index !== 0 ? "lg:border-r lg:border-espresso/10" : ""
                             }`}
                         >
-                            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-milk text-aubergine transition-all duration-300 ease-premium group-hover:-translate-y-1 group-hover:bg-aubergine group-hover:text-milk">
+                            <div className="omb-trust-icon flex h-11 w-11 items-center justify-center rounded-full transition-all duration-300 ease-premium group-hover:-translate-y-1">
                                 {icons[index]}
                             </div>
 
@@ -93,3 +93,4 @@ export default function TrustSection({ locale = "ar" }) {
         </section>
     );
 }
+

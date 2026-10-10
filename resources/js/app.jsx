@@ -12,7 +12,6 @@ import NewbornEssentials from "./components/NewbornEssentials";
 import GiftIdeas from "./components/GiftIdeas";
 import RewardsSection from "./components/RewardsSection";
 import TrustSection from "./components/TrustSection";
-import Newsletter from "./components/Newsletter";
 import Footer from "./components/Footer";
 import ScrollMotion from "./components/ui/ScrollMotion";
 import CatalogPage from "./components/CatalogPage";
@@ -21,12 +20,18 @@ import AccountSection from "./components/AccountSection";
 import DeliveryPage from "./components/DeliveryPage";
 import AdminOrdersPage from "./components/AdminOrdersPage";
 import OwnerOperationsPage from "./components/OwnerOperationsPage";
+import AdminCommissionsPage from "./components/AdminCommissionsPage";
 import OwnerDashboardPage from "./components/OwnerDashboardPage";
 import AdminDashboardPage from "./components/AdminDashboardPage";
 import MarketingPage from "./components/MarketingPage";
 import TeamManagementPage from "./components/TeamManagementPage";
 import HelpCenterPage from "./components/HelpCenterPage";
 import OwnerSectionPage from "./components/OwnerSectionPage";
+import StaffWorkspaceHeader from "./components/StaffWorkspaceHeader";
+import DecorationWorkspacePage from "./components/DecorationWorkspacePage";
+import CustomerAccountPage from "./components/CustomerAccountPage";
+import SupportChatLauncher from "./components/SupportChatLauncher";
+import AdminSupportPage from "./components/AdminSupportPage";
 
 function App() {
   const [locale, setLocale] = useState(() => { try { return window.localStorage.getItem("omb-locale") || "ar"; } catch { return "ar"; } });
@@ -66,6 +71,9 @@ function App() {
 
   const shell = (children) => <div className="min-h-screen bg-milk text-espresso" dir={isAr ? "rtl" : "ltr"}><div aria-hidden="true" className="omb-dark-stars" />{children}</div>;
 
+  if (pathname.startsWith("/owner/finance")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><OwnerOperationsPage locale={locale} /><Footer locale={locale} /></>);
+  if (pathname.startsWith("/owner/marketing")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><MarketingPage locale={locale} /><Footer locale={locale} /></>);
+  if (pathname.startsWith("/owner/support")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><AdminSupportPage locale={locale} /><Footer locale={locale} /></>);
   if (pathname.startsWith("/owner/team")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><TeamManagementPage locale={locale} /><Footer locale={locale} /></>);
   if (pathname.startsWith("/owner/help")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><HelpCenterPage locale={locale} /><Footer locale={locale} /></>);
   if (pathname.startsWith("/owner/section/")) {
@@ -73,14 +81,20 @@ function App() {
     return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><OwnerSectionPage locale={locale} sectionKey={sectionKey} /><Footer locale={locale} /></>);
   }
   if (pathname.startsWith("/owner")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><OwnerDashboardPage locale={locale} /><Footer locale={locale} /></>);
-  if (pathname.startsWith("/admin/team")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><TeamManagementPage locale={locale} /><Footer locale={locale} /></>);
-  if (pathname.startsWith("/admin/marketing")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><MarketingPage locale={locale} /><Footer locale={locale} /></>);
-  if (pathname.startsWith("/admin/operations")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><OwnerOperationsPage locale={locale} /><Footer locale={locale} /></>);
-  if (pathname.startsWith("/admin/orders")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><AdminOrdersPage locale={locale} /><Footer locale={locale} /></>);
-  if (pathname.startsWith("/admin/products")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><AdminPage locale={locale} /></>);
-  if (pathname === "/admin" || pathname === "/admin/") return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><AdminDashboardPage locale={locale} /><Footer locale={locale} /></>);
-  if (pathname.startsWith("/delivery")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><DeliveryPage locale={locale} /><Footer locale={locale} /></>);
-  if (pathname !== "/" && !pathname.startsWith("/#")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><CatalogPage locale={locale} path={`${pathname}${window.location.search}`} /><Footer locale={locale} /></>);
+  const adminHeader = <StaffWorkspaceHeader locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} role="admin" />;
+  const deliveryHeader = <StaffWorkspaceHeader locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} role="delivery" />;
+
+  if (pathname.startsWith("/admin/support")) return shell(<>{adminHeader}<AdminSupportPage locale={locale} /></>);
+  if (pathname.startsWith("/admin/team")) return shell(<>{adminHeader}<TeamManagementPage locale={locale} /></>);
+  if (pathname.startsWith("/admin/marketing")) return shell(<>{adminHeader}<MarketingPage locale={locale} /></>);
+  if (pathname.startsWith("/admin/operations")) return shell(<>{adminHeader}<AdminCommissionsPage locale={locale} /></>);
+  if (pathname.startsWith("/admin/orders")) return shell(<>{adminHeader}<AdminOrdersPage locale={locale} /></>);
+  if (pathname.startsWith("/admin/products")) return shell(<>{adminHeader}<AdminPage locale={locale} /></>);
+  if (pathname.startsWith("/admin/decoration")) return shell(<>{adminHeader}<DecorationWorkspacePage locale={locale} /></>);
+  if (pathname === "/admin" || pathname === "/admin/") return shell(<>{adminHeader}<AdminDashboardPage locale={locale} /></>);
+  if (pathname.startsWith("/delivery")) return shell(<>{deliveryHeader}<DeliveryPage locale={locale} /></>);
+  if (pathname.startsWith("/customer")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><CustomerAccountPage locale={locale} /><Footer locale={locale} /><SupportChatLauncher locale={locale} /></>);
+  if (pathname !== "/" && !pathname.startsWith("/#")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><CatalogPage locale={locale} path={`${pathname}${window.location.search}`} /><Footer locale={locale} /><SupportChatLauncher locale={locale} /></>);
 
   return shell(<>
     <Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} />
@@ -96,9 +110,9 @@ function App() {
       <ScrollMotion><TrustSection locale={locale} /></ScrollMotion>
       <ScrollMotion><RewardsSection locale={locale} /></ScrollMotion>
       <ScrollMotion><AccountSection locale={locale} /></ScrollMotion>
-      <ScrollMotion><Newsletter locale={locale} /></ScrollMotion>
     </main>
     <ScrollMotion><Footer locale={locale} /></ScrollMotion>
+    <SupportChatLauncher locale={locale} />
   </>);
 }
 

@@ -5,9 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\InterestPollVote;
 use App\Models\NewsletterSubscriber;
 use App\Models\PromoCode;
+use App\Models\User;
+use App\Support\PermissionCatalog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
 
@@ -144,6 +148,171 @@ class MarketingController extends Controller
             'subscribers' => NewsletterSubscriber::where('active', true)->latest()->limit(1000)->get(),
             'polls' => $polls,
             'feedback' => DB::table('customer_feedback')->latest()->limit(100)->get(),
+        ]);
+    }
+
+    public function contacts(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user && PermissionCatalog::has($user, 'marketing.contacts.view'), 403);
+
+        $customers = User::query()
+            ->where('role', 'customer')
+            ->orderByDesc('id')
+            ->limit(5000)
+            ->get(['id', 'name', 'email', 'phone', 'marketing_opt_in']);
+
+        $emails = $customers
+            ->filter(fn ($row) => filled($row->email))
+            ->map(fn ($row) => [
+                'id' => $row->id,
+                'name' => $row->name,
+                'value' => mb_strtolower(trim((string) $row->email)),
+                'marketing_opt_in' => (bool) $row->marketing_opt_in,
+            ])
+            ->unique('value')
+            ->values();
+
+        $phones = $customers
+            ->filter(fn ($row) => filled($row->phone))
+            ->map(fn ($row) => [
+                'id' => $row->id,
+                'name' => $row->name,
+                'value' => trim((string) $row->phone),
+                'marketing_opt_in' => (bool) $row->marketing_opt_in,
+            ])
+            ->unique('value')
+            ->values();
+
+        return response()->json([
+            'emails' => $emails,
+            'phones' => $phones,
+            'email_total' => $emails->count(),
+            'phone_total' => $phones->count(),
+            'email_marketable' => $emails->where('marketing_opt_in', true)->count(),
+            'phone_marketable' => $phones->where('marketing_opt_in', true)->count(),
+            'broadcasts' => Schema::hasTable('marketing_broadcasts')
+                ? DB::table('marketing_broadcasts')->latest()->limit(50)->get()
+                : [],
+        ]);
+    }
+
+    public function sendEmailBroadcast(Request $request): JsonResponse
+    {
+        $actor = $request->user();
+        abort_unless($actor && PermissionCatalog::has($actor, 'marketing.email.send'), 403);
+
+        $data = $request->validate([
+            'subject' => ['required', 'string', 'min:2', 'max:190'],
+            'message' => ['required', 'string', 'min:2', 'max:5000'],
+        ]);
+
+        $recipients = User::query()
+            ->where('role', 'customer')
+            ->where('marketing_opt_in', true)
+            ->whereNotNull('email')
+            ->where('email', '!=', '')
+            ->pluck('email')
+            ->map(fn ($email) => mb_strtolower(trim((string) $email)))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $success = 0;
+        $failed = 0;
+        foreach ($recipients as $email) {
+            try {
+                Mail::raw($data['message'], function ($mail) use ($email, $data) {
+                    $mail->to($email)->subject($data['subject']);
+                });
+                $success++;
+            } catch (\Throwable $error) {
+                report($error);
+                $failed++;
+            }
+        }
+
+        $this->logBroadcast($actor->id, 'email', $data['message'], $data['subject'], $recipients->count(), $success, $failed);
+
+        return response()->json([
+            'message' => 'Email broadcast completed.',
+            'recipients' => $recipients->count(),
+            'success' => $success,
+            'failed' => $failed,
+        ]);
+    }
+
+    public function sendWhatsappBroadcast(Request $request): JsonResponse
+    {
+        $actor = $request->user();
+        abort_unless($actor && PermissionCatalog::has($actor, 'marketing.whatsapp.send'), 403);
+
+        $data = $request->validate([
+            'message' => ['required', 'string', 'min:2', 'max:4000'],
+        ]);
+
+        $token = (string) config('services.whatsapp.token');
+        $phoneNumberId = (string) config('services.whatsapp.phone_number_id');
+        abort_if($token === '' || $phoneNumberId === '', 422, 'WhatsApp Business is not configured yet.');
+
+        $recipients = User::query()
+            ->where('role', 'customer')
+            ->where('marketing_opt_in', true)
+            ->whereNotNull('phone')
+            ->where('phone', '!=', '')
+            ->pluck('phone')
+            ->map(fn ($phone) => preg_replace('/[^0-9]/', '', (string) $phone))
+            ->filter(fn ($phone) => strlen($phone) >= 8)
+            ->unique()
+            ->values();
+
+        $version = (string) config('services.whatsapp.graph_version', 'v23.0');
+        $url = "https://graph.facebook.com/{$version}/{$phoneNumberId}/messages";
+        $success = 0;
+        $failed = 0;
+
+        foreach ($recipients as $phone) {
+            try {
+                $response = Http::withToken($token)->timeout(20)->post($url, [
+                    'messaging_product' => 'whatsapp',
+                    'recipient_type' => 'individual',
+                    'to' => $phone,
+                    'type' => 'text',
+                    'text' => ['preview_url' => false, 'body' => $data['message']],
+                ]);
+                if ($response->successful()) $success++; else $failed++;
+            } catch (\Throwable $error) {
+                report($error);
+                $failed++;
+            }
+        }
+
+        $this->logBroadcast($actor->id, 'whatsapp', $data['message'], null, $recipients->count(), $success, $failed);
+
+        return response()->json([
+            'message' => 'WhatsApp broadcast completed.',
+            'recipients' => $recipients->count(),
+            'success' => $success,
+            'failed' => $failed,
+        ]);
+    }
+
+    private function logBroadcast(?int $actorId, string $channel, string $message, ?string $subject, int $recipients, int $success, int $failed): void
+    {
+        if (! Schema::hasTable('marketing_broadcasts')) return;
+
+        DB::table('marketing_broadcasts')->insert([
+            'sent_by' => $actorId,
+            'channel' => $channel,
+            'subject' => $subject,
+            'message' => $message,
+            'recipients_count' => $recipients,
+            'success_count' => $success,
+            'failed_count' => $failed,
+            'status' => $failed > 0 ? ($success > 0 ? 'partial' : 'failed') : 'completed',
+            'meta' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
     }
 

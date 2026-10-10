@@ -11,10 +11,17 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['name', 'email', 'google_id', 'avatar_url', 'phone', 'password', 'role'])]
+#[Fillable(['name', 'email', 'google_id', 'avatar_url', 'phone', 'password', 'role', 'storefront_access'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
+    /**
+     * Staff storefront access is opt-in. Public customer creation explicitly enables it.
+     */
+    protected $attributes = [
+        'storefront_access' => false,
+    ];
+
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
@@ -50,6 +57,7 @@ class User extends Authenticatable
             'last_login_at' => 'datetime',
             'suspended_at' => 'datetime',
             'marketing_opt_in' => 'boolean',
+            'storefront_access' => 'boolean',
         ];
     }
 }

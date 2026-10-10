@@ -29,6 +29,20 @@ export default function CustomerAccountPage({ locale = "ar" }) {
     };
   }, []);
 
+  async function confirmReceipt(order) {
+    if (!window.confirm(isAr ? "تأكيد أنك استلمت الطلب؟" : "Confirm that you received this order?")) return;
+    setBusy(`confirm-${order.id}`);
+    setError("");
+    try {
+      await apiFetch(`/api/orders/${order.id}/confirm-receipt`, { method: "POST", body: "{}" });
+      await load();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function requestReturn(order) {
     const reason = window.prompt(isAr ? "اكتب سبب الإرجاع" : "Why would you like to return this order?", "");
     if (!reason?.trim()) return;
@@ -69,6 +83,13 @@ export default function CustomerAccountPage({ locale = "ar" }) {
                       <OrderStatus status={order.status} locale={locale} audience="customer" />
                     </div>
                     <p className="mt-3 text-sm text-espresso/60">${Number(order.total_usd).toFixed(2)} · {Number(order.total_syp || 0).toLocaleString()} {isAr ? "ل.س جديدة" : "New SYP"}</p>
+                    <button
+                      type="button"
+                      onClick={() => window.dispatchEvent(new CustomEvent("omb:support-open", { detail: { orderId: order.id, reference: order.reference } }))}
+                      className="mt-3 text-xs font-black text-aubergine underline"
+                    >
+                      {isAr ? "استفسار عن هذا الطلب" : "Ask about this order"}
+                    </button>
                     <div className="mt-4 border-t border-espresso/10 pt-4">
                       <OrderTimeline status={order.status} locale={locale} wasDelivered={Boolean(order.delivered_at)} />
                     </div>
@@ -96,15 +117,33 @@ export default function CustomerAccountPage({ locale = "ar" }) {
                       <p className="mt-2 text-xs text-espresso/55">{isAr ? "سائق المرتجع" : "Return driver"}: {order.return_delivery_user.name}</p>
                     )}
 
-                    {order.status === "delivered" && !order.return_rejected_at && (
-                      <div className="mt-4 border-t border-espresso/10 pt-4">
-                        <button
-                          disabled={busy === order.id}
-                          onClick={() => requestReturn(order)}
-                          className="omb-btn omb-btn-secondary disabled:opacity-40"
-                        >
-                          {isAr ? "طلب إرجاع" : "Request return"}
-                        </button>
+                    {order.status === "delivered" && (
+                      <div className="mt-4 flex flex-wrap gap-2 border-t border-espresso/10 pt-4">
+                        {!order.customer_confirmed_at ? (
+                          <button
+                            disabled={busy === `confirm-${order.id}`}
+                            onClick={() => confirmReceipt(order)}
+                            className="omb-btn omb-btn-primary disabled:opacity-40"
+                          >
+                            {busy === `confirm-${order.id}`
+                              ? (isAr ? "جاري التأكيد..." : "Confirming...")
+                              : (isAr ? "تأكيد استلام الطلب" : "Confirm receipt")}
+                          </button>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full border border-espresso/10 bg-milk px-4 py-2 text-xs font-black text-aubergine">
+                            {isAr ? "تم تأكيد الاستلام" : "Receipt confirmed"}
+                          </span>
+                        )}
+
+                        {!order.return_rejected_at && (
+                          <button
+                            disabled={busy === order.id}
+                            onClick={() => requestReturn(order)}
+                            className="omb-btn omb-btn-secondary disabled:opacity-40"
+                          >
+                            {isAr ? "طلب إرجاع" : "Request return"}
+                          </button>
+                        )}
                       </div>
                     )}
                     {order.status === "returned" && (

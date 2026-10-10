@@ -2,10 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CatalogProduct;
 use App\Models\Order;
+use App\Models\Product;
 use App\Models\RewardCoupon;
 use App\Models\PromoCode;
 use App\Services\ExchangeRateService;
+use App\Services\CommissionService;
+use App\Services\CatalogInventoryService;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,17 +18,30 @@ use Illuminate\Support\Str;
 
 class OrderController extends Controller
 {
-    public function store(Request $request, ExchangeRateService $rates): JsonResponse
+    public function store(Request $request, ExchangeRateService $rates, CatalogInventoryService $inventoryService): JsonResponse
     {
         $user = $request->user();
-        abort_unless($user, 401);
 
-        $data = $request->validate([
-            'customer_name' => ['required', 'string', 'max:140'],
-            'customer_phone' => ['required', 'string', 'max:50'],
-            'delivery_address' => ['required', 'string', 'max:1500'],
+        if ($user && $user->role !== 'customer') {
+            return response()->json([
+                'message' => 'استخدم حساب Customer أو تابع كزائر بعد تسجيل الخروج لإرسال طلب متجر.',
+            ], 403);
+        }
+
+$data = $request->validate([
+            'customer_name' => ['nullable', 'string', 'max:140'],
+            'customer_phone' => ['required_if:fulfillment_method,delivery', 'nullable', 'string', 'max:50'],
+            'delivery_address' => ['required_if:fulfillment_method,delivery', 'nullable', 'string', 'max:1500'],
             'customer_note' => ['nullable', 'string', 'max:2000'],
             'coupon_code' => ['nullable', 'string', 'max:80'],
+            'payment_currency' => ['required', 'string', 'in:usd,syp'],
+            'fulfillment_method' => ['required', 'string', 'in:delivery,shipping'],
+            'delivery_zone' => ['required_if:fulfillment_method,delivery', 'nullable', 'string', 'in:damascus,remote'],
+            'shipping_full_name' => ['required_if:fulfillment_method,shipping', 'nullable', 'string', 'max:160'],
+            'shipping_governorate' => ['required_if:fulfillment_method,shipping', 'nullable', 'string', 'max:120'],
+            'shipping_company' => ['required_if:fulfillment_method,shipping', 'nullable', 'string', 'max:160'],
+            'shipping_address' => ['required_if:fulfillment_method,shipping', 'nullable', 'string', 'max:1500'],
+            'shipping_phone' => ['required_if:fulfillment_method,shipping', 'nullable', 'string', 'max:50'],
             'items' => ['required', 'array', 'min:1', 'max:80'],
             'items.*.product_id' => ['required'],
             'items.*.name_ar' => ['nullable', 'string', 'max:220'],
@@ -33,22 +51,72 @@ class OrderController extends Controller
             'items.*.color_name' => ['nullable', 'string', 'max:160'],
             'items.*.size' => ['nullable', 'string', 'max:80'],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:50'],
-            'items.*.unit_price_usd' => ['required', 'numeric', 'min:0', 'max:100000'],
+            'items.*.unit_price_usd' => ['sometimes', 'numeric', 'min:0', 'max:100000'],
             'items.*.category' => ['nullable', 'string', 'max:100'],
             'items.*.sections' => ['nullable', 'array'],
         ]);
 
-        $subtotal = collect($data['items'])->sum(fn ($item) => round((float) $item['unit_price_usd'] * (int) $item['quantity'], 2));
+        $isShipping = $data['fulfillment_method'] === 'shipping';
+        $orderCustomerName = $isShipping
+            ? $data['shipping_full_name']
+            : ($data['customer_name'] ?? $user?->name ?? 'Delivery customer');
+        $orderCustomerPhone = $isShipping
+            ? $data['shipping_phone']
+            : $data['customer_phone'];
+        $orderAddress = $isShipping
+            ? $data['shipping_address']
+            : $data['delivery_address'];
+
+        // Resolve and lock all product rows before calculating any payment amount.
+        // Client-supplied names, prices, categories and sections are not authoritative.
+        $productIds = collect($data['items'])->pluck('product_id')->map(fn ($id) => (string) $id)->unique()->values();
+        $order = DB::transaction(function () use ($data, $user, $orderCustomerName, $orderCustomerPhone, $orderAddress, $rates, $inventoryService, $productIds) {
+            $catalogProducts = CatalogProduct::whereIn('external_id', $productIds)->orderBy('id')->lockForUpdate()->get()->keyBy(fn ($p) => (string) $p->external_id);
+            $legacyProducts = Product::whereIn('external_id', $productIds)->orderBy('id')->lockForUpdate()->get()->keyBy(fn ($p) => (string) $p->external_id);
+            $resolvedItems = [];
+            foreach ($data['items'] as $item) {
+                $id = (string) $item['product_id'];
+                $catalog = $catalogProducts->get($id);
+                $legacy = $legacyProducts->get($id);
+                if ($catalog) {
+                    if ($catalog->status !== 'active') {
+                        throw ValidationException::withMessages(['items' => ["Product {$id} is unavailable."]]);
+                    }
+                    $price = (float) ($catalog->offer_price_usd !== null && (float) $catalog->offer_price_usd < (float) $catalog->price_usd ? $catalog->offer_price_usd : $catalog->price_usd);
+                    $details = $catalog->toStoreArray();
+                } elseif ($legacy) {
+                    if ($legacy->status !== 'active' || $legacy->archived_at) {
+                        throw ValidationException::withMessages(['items' => ["Product {$id} is unavailable."]]);
+                    }
+                    $details = $legacy->payload ?: [];
+                    $regular = (float) ($details['price'] ?? 0);
+                    $offer = isset($details['offerPrice']) ? (float) $details['offerPrice'] : null;
+                    $price = $offer !== null && $offer > 0 && $offer < $regular ? $offer : $regular;
+                } else {
+                    throw ValidationException::withMessages(['items' => ["Product {$id} does not exist."]]);
+                }
+                if ($price <= 0) {
+                    throw ValidationException::withMessages(['items' => ["Product {$id} has no valid price."]]);
+                }
+                $item['_catalog'] = $catalog;
+                $item['_legacy'] = $legacy;
+                $item['_details'] = $details;
+                $item['_price'] = round($price, 2);
+                $resolvedItems[] = $item;
+            }
+            $subtotal = round(collect($resolvedItems)->sum(fn ($item) => $item['_price'] * (int) $item['quantity']), 2);
         $rewardCoupon = null;
         $promoCoupon = null;
         $discount = 0.0;
         $couponCode = ! empty($data['coupon_code']) ? strtoupper(trim($data['coupon_code'])) : null;
 
         if ($couponCode) {
-            $rewardCoupon = RewardCoupon::where('user_id', $user->id)
-                ->where('code', $couponCode)
-                ->where('status', 'available')
-                ->first();
+            if ($user) {
+                $rewardCoupon = RewardCoupon::where('user_id', $user->id)
+                    ->where('code', $couponCode)
+                    ->where('status', 'available')
+                    ->first();
+            }
 
             if ($rewardCoupon) {
                 $discount = round($subtotal * ((float) $rewardCoupon->discount_percent / 100), 2);
@@ -61,29 +129,44 @@ class OrderController extends Controller
                     ->first();
 
                 if (! $promoCoupon) {
-                    return response()->json(['message' => 'Coupon is invalid or inactive.'], 422);
+                    throw ValidationException::withMessages(['coupon_code' => ['Coupon is invalid or inactive.']]);
                 }
 
-                if ($promoCoupon->first_order_only && $user->orders()->whereNotIn('status', ['rejected', 'cancelled'])->exists()) {
-                    return response()->json(['message' => 'This promo code is available for the first order only.'], 422);
+                if ($promoCoupon->first_order_only) {
+                    $hasPreviousOrder = $user
+                        ? $user->orders()->whereNotIn('status', ['rejected', 'cancelled'])->exists()
+                        : Order::query()
+                            ->where('customer_phone', $orderCustomerPhone)
+                            ->whereNotIn('status', ['rejected', 'cancelled'])
+                            ->exists();
+
+                    if ($hasPreviousOrder) {
+                        throw ValidationException::withMessages(['coupon_code' => ['This promo code is available for the first order only.']]);
+                    }
                 }
 
                 $discount = round($subtotal * ((float) $promoCoupon->discount_percent / 100), 2);
             }
         }
 
-        $total = max(0, round($subtotal - $discount, 2));
+        $deliveryFeeUsd = match (true) {
+            $data['fulfillment_method'] === 'shipping' => 0.00,
+            ($data['delivery_zone'] ?? null) === 'remote' => 4.00,
+            default => 2.50,
+        };
+
+        $merchandiseTotal = max(0, round($subtotal - $discount, 2));
+        $total = round($merchandiseTotal + $deliveryFeeUsd, 2);
         $rateSnapshot = $rates->current();
         $totalSyp = $rates->convertUsdToSyp($total, $rateSnapshot);
 
-        $order = DB::transaction(function () use ($data, $user, $subtotal, $discount, $total, $rateSnapshot, $totalSyp, $rewardCoupon, $promoCoupon) {
             $order = Order::create([
                 'reference' => 'OMB-'.now()->format('ymd').'-'.strtoupper(Str::random(6)),
-                'user_id' => $user->id,
+                'user_id' => $user?->id,
                 'status' => 'pending_review',
-                'customer_name' => $data['customer_name'],
-                'customer_phone' => $data['customer_phone'],
-                'delivery_address' => $data['delivery_address'],
+                'customer_name' => $orderCustomerName,
+                'customer_phone' => $orderCustomerPhone,
+                'delivery_address' => $orderAddress,
                 'customer_note' => $data['customer_note'] ?? null,
                 'subtotal_usd' => $subtotal,
                 'discount_usd' => $discount,
@@ -92,22 +175,42 @@ class OrderController extends Controller
                 'total_syp' => $totalSyp,
                 'exchange_source' => $rateSnapshot['source'] ?? null,
                 'coupon_code' => $rewardCoupon?->code ?? $promoCoupon?->code,
+                'payment_currency' => $data['payment_currency'],
+                'fulfillment_method' => $data['fulfillment_method'],
+                'delivery_zone' => $data['fulfillment_method'] === 'delivery' ? $data['delivery_zone'] : null,
+                'delivery_fee_usd' => $deliveryFeeUsd,
+                'shipping_full_name' => $data['fulfillment_method'] === 'shipping' ? $data['shipping_full_name'] : null,
+                'shipping_governorate' => $data['fulfillment_method'] === 'shipping' ? $data['shipping_governorate'] : null,
+                'shipping_company' => $data['fulfillment_method'] === 'shipping' ? $data['shipping_company'] : null,
+                'shipping_address' => $data['fulfillment_method'] === 'shipping' ? $data['shipping_address'] : null,
+                'shipping_phone' => $data['fulfillment_method'] === 'shipping' ? $data['shipping_phone'] : null,
             ]);
 
-            foreach ($data['items'] as $item) {
-                $sections = $item['sections'] ?? [];
+            foreach ($resolvedItems as $item) {
+                $sections = $item['_details']['sections'] ?? [];
+                $externalId = (string) $item['product_id'];
+                $catalogProduct = $item['_catalog'];
+                $legacyProduct = $item['_legacy'];
+                $key = $catalogProduct
+                    ? $inventoryService->reserve($catalogProduct, $item['color_id'] ?? null, $item['size'] ?? null, (int) $item['quantity'])['key']
+                    : $inventoryService->reserveLegacy($legacyProduct, $item['color_id'] ?? null, $item['size'] ?? null, (int) $item['quantity'])['key'];
+                $sourceAdminId = $catalogProduct?->created_by ?: $legacyProduct?->created_by_user_id;
+
                 $order->items()->create([
-                    'product_external_id' => (string) $item['product_id'],
-                    'name_ar' => $item['name_ar'] ?? null,
-                    'name_en' => $item['name_en'] ?? null,
-                    'image' => $item['image'] ?? null,
+                    'product_external_id' => $externalId,
+                    'source_admin_user_id' => $sourceAdminId,
+                    'catalog_product_id' => $catalogProduct?->id,
+                    'inventory_key' => $key,
+                    'name_ar' => $item['_details']['name'] ?? $item['_details']['name_ar'] ?? null,
+                    'name_en' => $item['_details']['nameEn'] ?? $item['_details']['name_en'] ?? null,
+                    'image' => $item['_details']['image'] ?? null,
                     'color_id' => $item['color_id'] ?? null,
                     'color_name' => $item['color_name'] ?? null,
                     'size' => $item['size'] ?? null,
                     'quantity' => (int) $item['quantity'],
-                    'unit_price_usd' => (float) $item['unit_price_usd'],
-                    'line_total_usd' => round((float) $item['unit_price_usd'] * (int) $item['quantity'], 2),
-                    'category' => $item['category'] ?? null,
+                    'unit_price_usd' => $item['_price'],
+                    'line_total_usd' => round($item['_price'] * (int) $item['quantity'], 2),
+                    'category' => $item['_details']['category'] ?? null,
                     'sections' => $sections,
                     'is_offer' => in_array('offers', $sections, true),
                 ]);
@@ -118,7 +221,7 @@ class OrderController extends Controller
             }
 
             $order->events()->create([
-                'actor_user_id' => $user->id,
+                'actor_user_id' => $user?->id,
                 'event' => 'order_submitted',
                 'note' => $data['customer_note'] ?? null,
             ]);
@@ -127,6 +230,34 @@ class OrderController extends Controller
         });
 
         return response()->json(['message' => 'Order submitted for review.', 'order' => $order->load('items')], 201);
+    }
+
+    public function confirmReceipt(Request $request, Order $order, CommissionService $commissions): JsonResponse
+    {
+        abort_unless((int) $order->user_id === (int) $request->user()->id, 403);
+
+        if (! $order->delivered_at || $order->status !== 'delivered') {
+            return response()->json(['message' => 'لا يمكن تأكيد الاستلام قبل تسجيل الطلب كمسلّم من السائق.'], 409);
+        }
+
+        if (! $order->customer_confirmed_at) {
+            DB::transaction(function () use ($order, $request): void {
+                $order->forceFill(['customer_confirmed_at' => now()])->save();
+                $order->events()->create([
+                    'actor_user_id' => $request->user()->id,
+                    'event' => 'customer_receipt_confirmed',
+                    'note' => null,
+                ]);
+            });
+        }
+
+        $commission = $commissions->ensureForDeliveredOrder($order->fresh());
+
+        return response()->json([
+            'message' => 'تم تأكيد استلام الطلب.',
+            'order' => $order->fresh()->load(['items', 'deliveryUser:id,name,phone', 'commission']),
+            'commission' => $commission,
+        ]);
     }
 
     public function mine(Request $request): JsonResponse
@@ -177,3 +308,5 @@ class OrderController extends Controller
         ]);
     }
 }
+
+

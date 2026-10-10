@@ -17,6 +17,7 @@ export default function OwnerDashboardPage({ locale = "ar" }) {
   const isAr = locale === "ar";
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
+  const [supportUnread, setSupportUnread] = useState(0);
   const modules = useMemo(() => [...WORKSPACE_MODULES].sort((a, b) => a.order - b.order), []);
 
   useEffect(() => {
@@ -24,6 +25,20 @@ export default function OwnerDashboardPage({ locale = "ar" }) {
       .then(setData)
       .catch((e) => setError(e.status === 403 ? (isAr ? "هذه اللوحة خاصة بحساب Owner." : "Owner account only.") : e.message));
   }, [isAr]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => apiFetch("/api/support/staff/summary")
+      .then((next) => { if (!cancelled) setSupportUnread(Number(next.unread || 0)); })
+      .catch(() => { if (!cancelled) setSupportUnread(0); });
+
+    load();
+    const timer = window.setInterval(load, 15000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   return (
     <main className="min-h-[75vh] bg-milk px-4 py-8 sm:px-6 sm:py-10" dir={isAr ? "rtl" : "ltr"}>
@@ -41,6 +56,7 @@ export default function OwnerDashboardPage({ locale = "ar" }) {
             </div>
             <div className="flex flex-wrap gap-2">
               <a href="/owner/team" className="omb-btn omb-btn-primary">{isAr ? "الحسابات والصلاحيات" : "Accounts & permissions"}</a>
+              <a href="/owner/support" className="omb-btn omb-btn-secondary">{isAr ? "محادثات العملاء" : "Customer support"}{supportUnread > 0 ? ` (${supportUnread})` : ""}</a>
               <a href="/" className="omb-btn omb-btn-secondary">{isAr ? "عرض المتجر" : "View store"}</a>
             </div>
           </div>

@@ -37,7 +37,12 @@ function dashboardForRole(role) {
   if (role === "owner") return "/owner";
   if (role === "admin") return "/admin";
   if (role === "delivery") return "/delivery";
+  if (role === "customer") return "/customer";
   return "/";
+}
+
+function filterEmail(value) {
+  return String(value || "").includes("@") ? String(value || "").trim() : "";
 }
 
 function PasswordField({ label, value, onChange, minLength, isAr }) {
@@ -73,13 +78,16 @@ function ChoiceCard({ title, body, icon, onClick, disabled = false }) {
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="group border border-espresso/12 bg-milk p-5 text-start transition hover:-translate-y-1 hover:border-aubergine hover:bg-aubergine hover:text-milk disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+      className="omb-auth-choice group border border-espresso/12 bg-milk p-5 text-start transition hover:-translate-y-0.5 hover:border-aubergine disabled:cursor-not-allowed disabled:hover:translate-y-0"
     >
-      <span className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-full bg-oat text-lg font-black text-espresso transition group-hover:bg-milk group-hover:text-aubergine">
+      <span
+        className="omb-auth-choice-icon mb-4 inline-flex h-11 w-11 items-center justify-center rounded-full text-lg font-black transition"
+        style={{ backgroundColor: "#f5efe6", color: "#6f5540", opacity: 1 }}
+      >
         {icon}
       </span>
-      <strong className="block text-lg font-black">{title}</strong>
-      <span className="mt-2 block text-sm font-semibold leading-6 opacity-65">{body}</span>
+      <strong className={`block text-lg font-black ${disabled ? "opacity-55" : ""}`}>{title}</strong>
+      <span className={`mt-2 block text-sm font-semibold leading-6 ${disabled ? "opacity-40" : "opacity-65"}`}>{body}</span>
     </button>
   );
 }
@@ -107,6 +115,28 @@ export default function AuthPanel({ locale = "ar", compact = false, redirectOnSu
     password_confirmation: "",
     marketing_opt_in: false,
   });
+
+  const [verificationCode, setVerificationCode] = useState("");
+  const [verificationCooldown, setVerificationCooldown] = useState(0);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [reset, setReset] = useState({
+    email: "",
+    code: "",
+    password: "",
+    password_confirmation: "",
+  });
+  const [resetCooldown, setResetCooldown] = useState(0);
+
+  useEffect(() => {
+    if (verificationCooldown <= 0 && resetCooldown <= 0) return undefined;
+
+    const timer = window.setInterval(() => {
+      setVerificationCooldown((current) => Math.max(0, current - 1));
+      setResetCooldown((current) => Math.max(0, current - 1));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [verificationCooldown > 0, resetCooldown > 0]);
 
   useEffect(() => {
     let active = true;
@@ -137,6 +167,12 @@ export default function AuthPanel({ locale = "ar", compact = false, redirectOnSu
 
       setSession({ loading: false, user: data.user });
       window.dispatchEvent(new CustomEvent("omb:auth-updated"));
+
+      if (data.verification_required) {
+        setMode("verify");
+        setMessage(isAr ? "وثّق بريدك الإلكتروني لإكمال تفعيل الحساب." : "Verify your email to finish activating your account.");
+        return;
+      }
 
       if (redirectOnSuccess) {
         window.location.assign(data.redirect || dashboardForRole(data.user?.role));
@@ -176,12 +212,119 @@ export default function AuthPanel({ locale = "ar", compact = false, redirectOnSu
         password_confirmation: "",
         marketing_opt_in: false,
       });
+      setVerificationCooldown(Number(data.retry_after || 60));
+      setMode("verify");
+      setMessage(data.message || (isAr ? "أرسلنا رمز التحقق إلى بريدك." : "We sent a verification code to your email."));
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendVerificationCode() {
+    setBusy(true);
+    setMessage("");
+
+    try {
+      const data = await request("/auth/email-verification/send", {
+        method: "POST",
+        body: "{}",
+      });
+
+      setVerificationCooldown(Number(data.retry_after || 60));
+      setMessage(data.message);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitVerification(event) {
+    event.preventDefault();
+    setBusy(true);
+    setMessage("");
+
+    try {
+      const data = await request("/auth/email-verification/verify", {
+        method: "POST",
+        body: JSON.stringify({ code: verificationCode }),
+      });
+
+      setSession({ loading: false, user: data.user });
+      setVerificationCode("");
+      window.dispatchEvent(new CustomEvent("omb:auth-updated"));
 
       if (redirectOnSuccess) {
         window.location.assign(data.redirect || dashboardForRole(data.user?.role));
       } else {
-        setMessage(isAr ? "تم إنشاء الحساب وتسجيل الدخول." : "Account created and signed in.");
+        setMessage(data.message);
       }
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitForgot(event) {
+    event.preventDefault();
+    setBusy(true);
+    setMessage("");
+
+    try {
+      const data = await request("/auth/password/forgot", {
+        method: "POST",
+        body: JSON.stringify({ email: forgotEmail }),
+      });
+
+      setReset((current) => ({ ...current, email: forgotEmail }));
+      setResetCooldown(Number(data.retry_after || 60));
+      setMode("reset");
+      setMessage(data.message);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resendResetCode() {
+    if (!reset.email || resetCooldown > 0) return;
+
+    setBusy(true);
+    setMessage("");
+
+    try {
+      const data = await request("/auth/password/forgot", {
+        method: "POST",
+        body: JSON.stringify({ email: reset.email }),
+      });
+      setResetCooldown(Number(data.retry_after || 60));
+      setMessage(data.message);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitReset(event) {
+    event.preventDefault();
+    setBusy(true);
+    setMessage("");
+
+    try {
+      const data = await request("/auth/password/reset", {
+        method: "POST",
+        body: JSON.stringify(reset),
+      });
+
+      setLogin((current) => ({ ...current, identifier: reset.email, password: "" }));
+      setReset({ email: "", code: "", password: "", password_confirmation: "" });
+      setMode("login");
+      setMessage(data.message);
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -217,6 +360,71 @@ export default function AuthPanel({ locale = "ar", compact = false, redirectOnSu
     const user = session.user;
     const isCustomer = user.role === "customer";
     const isAdminLike = user.role === "owner" || user.role === "admin";
+
+    if (isCustomer && user.email_verification_required) {
+      return (
+        <div className={`border border-espresso/10 bg-oat/20 ${compact ? "p-6" : "p-7 sm:p-9"}`}>
+          <p className="omb-eyebrow-label text-aubergine/65">EMAIL VERIFICATION</p>
+          <h3 className="mt-3 text-2xl font-black text-espresso">
+            {isAr ? "تأكيد البريد الإلكتروني" : "Verify your email"}
+          </h3>
+          <p className="mt-2 text-sm font-semibold leading-6 text-espresso/55">
+            {isAr
+              ? `أدخل الرمز المكوّن من 6 أرقام الذي أرسلناه إلى ${user.email || "بريدك الإلكتروني"}.`
+              : `Enter the 6-digit code sent to ${user.email || "your email"}.`}
+          </p>
+
+          <form onSubmit={submitVerification} className="mt-6">
+            <label className="block text-sm font-black text-espresso">
+              {isAr ? "رمز التحقق" : "Verification code"}
+              <input
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]{6}"
+                maxLength={6}
+                required
+                value={verificationCode}
+                onChange={(event) => setVerificationCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                className="mt-2 h-12 w-full border border-espresso/12 bg-milk px-4 text-center text-lg font-black tracking-[0.35em] outline-none focus:border-aubergine"
+                placeholder="000000"
+              />
+            </label>
+
+            <button type="submit" disabled={busy || verificationCode.length !== 6} className="omb-btn omb-btn-primary mt-5 w-full disabled:opacity-40">
+              {busy ? (isAr ? "جاري التحقق..." : "Verifying...") : isAr ? "تأكيد البريد" : "Verify email"}
+            </button>
+          </form>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <button
+              type="button"
+              disabled={busy || verificationCooldown > 0}
+              onClick={sendVerificationCode}
+              className="text-sm font-black text-aubergine underline disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {verificationCooldown > 0
+                ? isAr ? `إعادة الإرسال بعد ${verificationCooldown}ث` : `Resend in ${verificationCooldown}s`
+                : isAr ? "إعادة إرسال الرمز" : "Resend code"}
+            </button>
+
+            <button
+              type="button"
+              disabled={busy}
+              onClick={logout}
+              className="text-sm font-black text-espresso/55 underline disabled:opacity-40"
+            >
+              {isAr ? "تسجيل الخروج" : "Sign out"}
+            </button>
+          </div>
+
+          {message && (
+            <p className="mt-4 border border-aubergine/15 bg-aubergine/5 p-3 text-sm font-black text-aubergine">
+              {message}
+            </p>
+          )}
+        </div>
+      );
+    }
 
     return (
       <div className={`border border-espresso/10 bg-oat/20 ${compact ? "p-6" : "p-7 sm:p-9"}`}>
@@ -399,17 +607,123 @@ export default function AuthPanel({ locale = "ar", compact = false, redirectOnSu
             />
           </div>
 
-          <label className="mt-4 flex items-center gap-2 text-xs font-bold text-espresso/60">
-            <input
-              type="checkbox"
-              checked={login.remember}
-              onChange={(event) => setLogin((current) => ({ ...current, remember: event.target.checked }))}
-            />
-            {isAr ? "تذكرني" : "Remember me"}
-          </label>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <label className="flex items-center gap-2 text-xs font-bold text-espresso/60">
+              <input
+                type="checkbox"
+                checked={login.remember}
+                onChange={(event) => setLogin((current) => ({ ...current, remember: event.target.checked }))}
+              />
+              {isAr ? "تذكرني" : "Remember me"}
+            </label>
+
+            <button
+              type="button"
+              onClick={() => {
+                setForgotEmail(filterEmail(login.identifier));
+                setMessage("");
+                setMode("forgot");
+              }}
+              className="text-xs font-black text-aubergine underline"
+            >
+              {isAr ? "نسيت كلمة المرور؟" : "Forgot password?"}
+            </button>
+          </div>
 
           <button type="submit" disabled={busy} className="omb-btn omb-btn-primary mt-6 w-full disabled:opacity-40">
             {busy ? (isAr ? "جاري الدخول..." : "Signing in...") : isAr ? "تسجيل الدخول" : "Sign in"}
+          </button>
+        </form>
+      )}
+
+      {mode === "forgot" && (
+        <form onSubmit={submitForgot} className="mt-1">
+          <h3 className="text-2xl font-black text-espresso">
+            {isAr ? "استرجاع كلمة المرور" : "Reset password"}
+          </h3>
+
+          <p className="mt-2 text-sm font-semibold leading-6 text-espresso/55">
+            {isAr
+              ? "أدخل بريدك الإلكتروني وسنرسل لك رمزاً من 6 أرقام."
+              : "Enter your email and we will send a 6-digit reset code."}
+          </p>
+
+          <label className="mt-6 block text-sm font-black text-espresso">
+            {isAr ? "البريد الإلكتروني" : "Email"}
+            <input
+              type="email"
+              required
+              value={forgotEmail}
+              onChange={(event) => setForgotEmail(event.target.value)}
+              className="mt-2 h-12 w-full border border-espresso/12 bg-milk px-4 text-sm font-semibold outline-none focus:border-aubergine"
+              placeholder="name@example.com"
+            />
+          </label>
+
+          <button type="submit" disabled={busy} className="omb-btn omb-btn-primary mt-6 w-full disabled:opacity-40">
+            {busy ? (isAr ? "جاري الإرسال..." : "Sending...") : isAr ? "إرسال رمز الاسترجاع" : "Send reset code"}
+          </button>
+        </form>
+      )}
+
+      {mode === "reset" && (
+        <form onSubmit={submitReset} className="mt-1">
+          <h3 className="text-2xl font-black text-espresso">
+            {isAr ? "تعيين كلمة مرور جديدة" : "Set a new password"}
+          </h3>
+
+          <p className="mt-2 text-sm font-semibold leading-6 text-espresso/55">
+            {isAr
+              ? `أدخل الرمز المرسل إلى ${reset.email || "بريدك"} ثم اختر كلمة مرور جديدة.`
+              : `Enter the code sent to ${reset.email || "your email"}, then choose a new password.`}
+          </p>
+
+          <label className="mt-6 block text-sm font-black text-espresso">
+            {isAr ? "رمز الاسترجاع" : "Reset code"}
+            <input
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]{6}"
+              maxLength={6}
+              required
+              value={reset.code}
+              onChange={(event) => setReset((current) => ({ ...current, code: event.target.value.replace(/\D/g, "").slice(0, 6) }))}
+              className="mt-2 h-12 w-full border border-espresso/12 bg-milk px-4 text-center text-lg font-black tracking-[0.35em] outline-none focus:border-aubergine"
+              placeholder="000000"
+            />
+          </label>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <PasswordField
+              label={isAr ? "كلمة المرور الجديدة" : "New password"}
+              value={reset.password}
+              minLength={8}
+              onChange={(event) => setReset((current) => ({ ...current, password: event.target.value }))}
+              isAr={isAr}
+            />
+
+            <PasswordField
+              label={isAr ? "تأكيد كلمة المرور" : "Confirm password"}
+              value={reset.password_confirmation}
+              minLength={8}
+              onChange={(event) => setReset((current) => ({ ...current, password_confirmation: event.target.value }))}
+              isAr={isAr}
+            />
+          </div>
+
+          <button type="submit" disabled={busy || reset.code.length !== 6} className="omb-btn omb-btn-primary mt-6 w-full disabled:opacity-40">
+            {busy ? (isAr ? "جاري التغيير..." : "Updating...") : isAr ? "تغيير كلمة المرور" : "Change password"}
+          </button>
+
+          <button
+            type="button"
+            disabled={busy || resetCooldown > 0}
+            onClick={resendResetCode}
+            className="mt-4 text-sm font-black text-aubergine underline disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {resetCooldown > 0
+              ? isAr ? `إعادة الإرسال بعد ${resetCooldown}ث` : `Resend in ${resetCooldown}s`
+              : isAr ? "إعادة إرسال الرمز" : "Resend code"}
           </button>
         </form>
       )}
@@ -422,8 +736,8 @@ export default function AuthPanel({ locale = "ar", compact = false, redirectOnSu
 
           <p className="mt-2 text-sm font-semibold leading-6 text-espresso/55">
             {isAr
-              ? "الحساب يعتمد على رقم الهاتف. البريد الإلكتروني اختياري."
-              : "Your account uses your phone number. Email is optional."}
+              ? "أدخل رقم الهاتف والبريد الإلكتروني. سنرسل رمزاً من 6 أرقام لتأكيد البريد."
+              : "Enter your phone and email. We will send a 6-digit code to verify the email."}
           </p>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -452,9 +766,10 @@ export default function AuthPanel({ locale = "ar", compact = false, redirectOnSu
           </div>
 
           <label className="mt-4 block text-sm font-black text-espresso">
-            {isAr ? "البريد الإلكتروني — اختياري" : "Email — optional"}
+            {isAr ? "البريد الإلكتروني" : "Email"}
             <input
               type="email"
+              required
               value={register.email}
               onChange={(event) => setRegister((current) => ({ ...current, email: event.target.value }))}
               className="mt-2 h-12 w-full border border-espresso/12 bg-milk px-4 text-sm font-semibold outline-none focus:border-aubergine"
@@ -514,3 +829,4 @@ export default function AuthPanel({ locale = "ar", compact = false, redirectOnSu
     </div>
   );
 }
+

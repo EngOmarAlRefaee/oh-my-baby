@@ -1,11 +1,10 @@
-import { mockProducts } from "./mockProducts";
-
 export const PRODUCTS_STORAGE_KEY = "omb-admin-products";
 export const CART_STORAGE_KEY = "omb-cart";
 export const WISHLIST_STORAGE_KEY = "omb-wishlist";
 export const CATALOG_SCHEMA_KEY = "omb-catalog-schema";
 export const CATALOG_BACKUP_KEY = "omb-admin-products-before-v2";
-const CATALOG_SCHEMA_VERSION = 2;
+const CATALOG_SCHEMA_VERSION = 3;
+const REAL_CATALOG_RESET_KEY = "omb-real-catalog-v1";
 
 function safeParse(value, fallback) {
   try {
@@ -75,71 +74,31 @@ export function normalizeProduct(product) {
     colors,
     sizes,
     inventory,
-    image: product.image || firstColorImage || "/images/products/product-01-dress.jpg",
+    image: product.image || firstColorImage || "",
   };
 }
 
-function migrateLegacyProducts(savedProducts) {
-  const defaultsById = new Map(mockProducts.map((product) => [String(product.id), product]));
-  const savedById = new Map(
-    savedProducts.map((product) => [String(product.id), product]),
-  );
-
-  // Keep any previous user/admin edits, but backfill the new catalog structure
-  // (world, subcategory, inventory, etc.) from the upgraded demo catalog.
-  const mergedDefaults = mockProducts.map((product) => {
-    const saved = savedById.get(String(product.id));
-    if (!saved) return product;
-    return {
-      ...product,
-      ...saved,
-      world: saved.world || product.world,
-      subcategory: saved.subcategory || product.subcategory,
-      sections: Array.isArray(saved.sections) ? saved.sections : product.sections,
-      colors: Array.isArray(saved.colors) && saved.colors.length ? saved.colors : product.colors,
-      sizes: Array.isArray(saved.sizes) && saved.sizes.length ? saved.sizes : product.sizes,
-      inventory:
-        saved.inventory && Object.keys(saved.inventory).length
-          ? saved.inventory
-          : product.inventory,
-    };
-  });
-
-  const customProducts = savedProducts.filter(
-    (product) => !defaultsById.has(String(product.id)),
-  );
-
-  return [...customProducts, ...mergedDefaults].map(normalizeProduct);
+function clearPrelaunchDemoCacheOnce() {
+  if (typeof window === "undefined") return;
+  try {
+    if (window.localStorage.getItem(REAL_CATALOG_RESET_KEY) === "1") return;
+    window.localStorage.removeItem(PRODUCTS_STORAGE_KEY);
+    window.localStorage.removeItem(CART_STORAGE_KEY);
+    window.localStorage.removeItem(WISHLIST_STORAGE_KEY);
+    window.localStorage.removeItem(CATALOG_BACKUP_KEY);
+    window.localStorage.setItem(CATALOG_SCHEMA_KEY, String(CATALOG_SCHEMA_VERSION));
+    window.localStorage.setItem(REAL_CATALOG_RESET_KEY, "1");
+  } catch {
+    // Storage may be blocked; the database remains the source of truth.
+  }
 }
 
 export function getProducts() {
-  if (typeof window === "undefined") return mockProducts.map(normalizeProduct);
+  if (typeof window === "undefined") return [];
 
-  const saved = safeParse(window.localStorage.getItem(PRODUCTS_STORAGE_KEY), null);
-  const schemaVersion = Number(window.localStorage.getItem(CATALOG_SCHEMA_KEY) || 1);
-  if (!Array.isArray(saved)) return mockProducts.map(normalizeProduct);
-  if (!saved.length) {
-    return schemaVersion >= CATALOG_SCHEMA_VERSION
-      ? []
-      : mockProducts.map(normalizeProduct);
-  }
-
-  if (schemaVersion < CATALOG_SCHEMA_VERSION) {
-    try {
-      if (!window.localStorage.getItem(CATALOG_BACKUP_KEY)) {
-        window.localStorage.setItem(CATALOG_BACKUP_KEY, JSON.stringify(saved));
-      }
-      const migrated = migrateLegacyProducts(saved);
-      window.localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(migrated));
-      window.localStorage.setItem(CATALOG_SCHEMA_KEY, String(CATALOG_SCHEMA_VERSION));
-      return migrated;
-    } catch {
-      // If storage is unavailable/full, keep the old products rather than losing them.
-      return saved.map(normalizeProduct);
-    }
-  }
-
-  return saved.map(normalizeProduct);
+  clearPrelaunchDemoCacheOnce();
+  const saved = safeParse(window.localStorage.getItem(PRODUCTS_STORAGE_KEY), []);
+  return Array.isArray(saved) ? saved.map(normalizeProduct) : [];
 }
 
 export function saveProducts(products) {
@@ -340,3 +299,5 @@ export function toggleWishlist(productId) {
   window.dispatchEvent(new CustomEvent("omb:wishlist-updated"));
   return next.includes(id);
 }
+
+
