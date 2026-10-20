@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\CatalogProduct;
+use App\Models\MarketingContact;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\RewardCoupon;
@@ -229,6 +230,9 @@ $data = $request->validate([
             return $order;
         });
 
+        // Phone numbers are collected automatically from every order (guests too).
+        MarketingContact::capture($orderCustomerPhone, $orderCustomerName);
+
         return response()->json(['message' => 'Order submitted for review.', 'order' => $order->load('items')], 201);
     }
 
@@ -280,9 +284,40 @@ $data = $request->validate([
             return response()->json(['message' => 'A return request already exists for this order.'], 409);
         }
 
+        // Returns are accepted for a limited number of days after delivery (default 3).
+        $windowDays = (int) config('ohmybaby.returns.window_days', 3);
+        if ($windowDays > 0 && $order->delivered_at && $order->delivered_at->copy()->addDays($windowDays)->isPast()) {
+            return response()->json(['message' => "انتهت مدة الإرجاع ({$windowDays} أيام من تاريخ التسليم)."], 409);
+        }
+
         $data = $request->validate([
             'reason' => ['required', 'string', 'min:3', 'max:2000'],
+            'items' => ['nullable', 'array'],
+            'items.*.id' => ['required', 'integer'],
+            'items.*.quantity' => ['required', 'integer', 'min:0'],
         ]);
+
+        // Which pieces the customer wants to return (omitted = the whole order).
+        $order->loadMissing('items');
+        $picked = collect($data['items'] ?? [])->keyBy('id');
+        $wanted = [];
+        $total = 0;
+        foreach ($order->items as $item) {
+            $qty = $picked->isEmpty() ? (int) $item->quantity : (int) ($picked->get($item->id)['quantity'] ?? 0);
+            if ($qty > (int) $item->quantity) {
+                return response()->json(['message' => 'الكمية المرتجعة أكبر من الكمية المطلوبة.'], 422);
+            }
+            $wanted[$item->id] = $qty;
+            $total += $qty;
+        }
+        if ($total < 1) {
+            return response()->json(['message' => 'اختاري قطعة واحدة على الأقل للإرجاع.'], 422);
+        }
+        if (\Illuminate\Support\Facades\Schema::hasColumn('order_items', 'return_requested_quantity')) {
+            foreach ($order->items as $item) {
+                $item->update(['return_requested_quantity' => $wanted[$item->id] ?? 0]);
+            }
+        }
 
         $order->update([
             'status' => 'return_requested',

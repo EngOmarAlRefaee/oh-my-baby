@@ -4,6 +4,7 @@ use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Facades\Schema;
 
 Artisan::command('inspire', function () {
@@ -12,6 +13,15 @@ Artisan::command('inspire', function () {
 
 
 
+
+Artisan::command('omb:auto-confirm-receipts {--hours= : Override the configured number of hours}', function (\App\Services\CommissionService $commissions) {
+    $hours = $this->option('hours') !== null ? (int) $this->option('hours') : null;
+    $count = $commissions->autoConfirmDeliveredOrders($hours);
+    $this->info("Auto-confirmed receipt for {$count} order(s).");
+})->purpose('Auto-confirm receipt (and accrue Admin commission) for delivered orders nobody confirmed.');
+
+// Requires the standard Laravel cron entry: * * * * * php artisan schedule:run
+Schedule::command('omb:auto-confirm-receipts')->everyTenMinutes()->withoutOverlapping();
 
 Artisan::command('omb:reset-commerce {--force : Actually delete commercial demo/test data}', function () {
     if (! $this->option('force')) {

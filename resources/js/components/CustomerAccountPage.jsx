@@ -43,16 +43,22 @@ export default function CustomerAccountPage({ locale = "ar" }) {
     }
   }
 
+  const [retFor, setRetFor] = useState(null);
+  const [retReason, setRetReason] = useState("");
+  const [retQty, setRetQty] = useState({});
+  const qtyOf = (item) => retQty[item.id] ?? Number(item.quantity);
+  const openReturn = (order) => { setRetFor(order.id); setRetReason(""); setRetQty({}); };
+
   async function requestReturn(order) {
-    const reason = window.prompt(isAr ? "اكتب سبب الإرجاع" : "Why would you like to return this order?", "");
-    if (!reason?.trim()) return;
+    const items = (order.items || []).map((item) => ({ id: item.id, quantity: qtyOf(item) }));
     setBusy(order.id);
     setError("");
     try {
       await apiFetch(`/api/orders/${order.id}/return-request`, {
         method: "POST",
-        body: JSON.stringify({ reason: reason.trim() }),
+        body: JSON.stringify({ reason: retReason.trim(), items }),
       });
+      setRetFor(null);
       await load();
     } catch (e) {
       setError(e.message);
@@ -135,15 +141,46 @@ export default function CustomerAccountPage({ locale = "ar" }) {
                           </span>
                         )}
 
-                        {!order.return_rejected_at && (
-                          <button
-                            disabled={busy === order.id}
-                            onClick={() => requestReturn(order)}
-                            className="omb-btn omb-btn-secondary disabled:opacity-40"
-                          >
-                            {isAr ? "طلب إرجاع" : "Request return"}
-                          </button>
+                        {retFor === order.id && (
+                          <div className="w-full basis-full rounded-xl border border-espresso/12 bg-milk p-4 text-sm">
+                            <p className="text-xs font-black text-aubergine/70">{isAr ? "شو بدك ترجّعي من هالطلب؟ حددي عدد القطع لكل منتج" : "What would you like to return? Set the pieces per item"}</p>
+                            <div className="mt-3 grid gap-2">
+                              {(order.items || []).map((item) => (
+                                <label key={item.id} className="flex items-center justify-between gap-3">
+                                  <span>{isAr ? item.name_ar : (item.name_en || item.name_ar)} {[item.color_name, item.size].filter(Boolean).join(" · ")} <span className="text-espresso/50">(×{item.quantity})</span></span>
+                                  <input type="number" min="0" max={item.quantity} value={qtyOf(item)} onChange={(e) => setRetQty((current) => ({ ...current, [item.id]: Math.max(0, Math.min(Number(item.quantity), Number(e.target.value) || 0)) }))} className="w-20 border border-espresso/12 bg-white p-2 text-center" />
+                                </label>
+                              ))}
+                            </div>
+                            <label className="mt-3 block text-xs font-black">{isAr ? "سبب الإرجاع" : "Reason"}
+                              <input value={retReason} onChange={(e) => setRetReason(e.target.value)} className="mt-2 w-full border border-espresso/12 bg-white p-3" />
+                            </label>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <button type="button" disabled={busy === order.id || retReason.trim().length < 3 || (order.items || []).reduce((sum, item) => sum + qtyOf(item), 0) < 1} onClick={() => requestReturn(order)} className="omb-btn omb-btn-primary disabled:opacity-40">{isAr ? "إرسال طلب الإرجاع" : "Send return request"}</button>
+                              <button type="button" onClick={() => setRetFor(null)} className="omb-btn omb-btn-secondary">{isAr ? "إلغاء" : "Cancel"}</button>
+                            </div>
+                          </div>
                         )}
+
+                        {!order.return_rejected_at && (() => {
+                          const deliveredMs = order.delivered_at ? new Date(order.delivered_at).getTime() : 0;
+                          const daysLeft = deliveredMs ? Math.ceil((deliveredMs + 3 * 86400000 - Date.now()) / 86400000) : 3;
+                          if (daysLeft <= 0) {
+                            return <p className="text-sm text-espresso/60">{isAr ? "انتهت مدة الإرجاع (3 أيام من التسليم)." : "The 3-day return window has ended."}</p>;
+                          }
+                          return (
+                            <div>
+                              <button
+                                disabled={busy === order.id}
+                                onClick={() => openReturn(order)}
+                                className="omb-btn omb-btn-secondary disabled:opacity-40"
+                              >
+                                {isAr ? "طلب إرجاع" : "Request return"}
+                              </button>
+                              <p className="mt-2 text-xs text-espresso/55">{isAr ? `الإرجاع متاح خلال 3 أيام من التسليم (باقي ${daysLeft} ${daysLeft === 1 ? "يوم" : "أيام"}).` : `Returns are accepted within 3 days of delivery (${daysLeft} left).`}</p>
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
                     {order.status === "returned" && (

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import ProductCard from "./product/ProductCard";
+import { socialUrl } from "../lib/social";
 import AuthPanel from "./auth/AuthPanel";
 import DualPrice from "./ui/DualPrice";
 import CheckoutPage from "./CheckoutPage";
@@ -19,6 +20,8 @@ import {
   removeCartItem,
   setCartItemQuantity,
 } from "../data/productStore";
+
+import { ServiceBody, FollowPage } from "./ServicePages";
 
 function PageShell({ locale, title, eyebrow, description, children, compact = false }) {
   const isAr = locale === "ar";
@@ -43,18 +46,12 @@ function SubcategoryNav({ locale, categorySlug, active = "all" }) {
   const items = getSubcategories(categorySlug);
   if (items.length <= 1) return null;
   return (
-    <nav className="omb-category-subnav mb-7 overflow-x-auto border-y border-espresso/10" aria-label={isAr ? "أنواع القسم" : "Category types"}>
-      <div className="flex min-w-max items-center gap-1 py-3">
+    <nav className="omb-chipnav mb-6" aria-label={isAr ? "أنواع القسم" : "Category types"}>
+      <div className="omb-chipnav-track">
         {items.map((item) => {
           const href = item.id === "all" ? `/category/${categorySlug}` : `/category/${categorySlug}/${item.id}`;
           return (
-            <a
-              key={item.id}
-              href={href}
-              className={`px-4 py-2.5 text-sm font-black transition-colors ${
-                active === item.id ? "bg-aubergine text-milk" : "text-espresso/65 hover:text-aubergine"
-              }`}
-            >
+            <a key={item.id} href={href} aria-current={active === item.id ? "page" : undefined} className={`omb-chip ${active === item.id ? "is-active" : ""}`}>
               {isAr ? item.ar : item.en}
             </a>
           );
@@ -67,21 +64,24 @@ function SubcategoryNav({ locale, categorySlug, active = "all" }) {
 function SeasonNav({ locale, value, onChange }) {
   const isAr = locale === "ar";
   const items = [
-    { id: "all", ar: "الكل", en: "All" },
-    { id: "summer", ar: "صيفي", en: "Summer" },
-    { id: "winter", ar: "شتوي", en: "Winter" },
+    { id: "all", ar: "الكل", en: "All", icon: "" },
+    { id: "summer", ar: "صيفي", en: "Summer", icon: "☀" },
+    { id: "winter", ar: "شتوي", en: "Winter", icon: "❄" },
   ];
 
   return (
-    <nav className="omb-season-nav mb-4 border-y border-espresso/10 bg-oat/20" aria-label={isAr ? "فلترة حسب الموسم" : "Filter by season"}>
-      <div className="flex min-w-max items-center justify-center gap-2 overflow-x-auto py-3">
+    <nav className="omb-season-seg mb-5" aria-label={isAr ? "فلترة حسب الموسم" : "Filter by season"}>
+      <div className="omb-season-seg-track" role="tablist">
         {items.map((item) => (
           <button
             key={item.id}
             type="button"
+            role="tab"
+            aria-selected={value === item.id}
             onClick={() => onChange(item.id)}
-            className={`min-w-24 px-5 py-2.5 text-sm font-black transition ${value === item.id ? "bg-aubergine text-milk" : "text-espresso/65 hover:text-aubergine"}`}
+            className={`omb-season-opt ${value === item.id ? "is-active" : ""}`}
           >
+            {item.icon && <span aria-hidden="true">{item.icon}</span>}
             {isAr ? item.ar : item.en}
           </button>
         ))}
@@ -106,21 +106,24 @@ function Filters({ locale, products, state, setState, categorySlug }) {
   const set = (key, value) => setState((current) => ({ ...current, [key]: value }));
 
   return (
-    <div className="mb-9 border-b border-espresso/10 pb-5">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex min-w-[260px] flex-1 items-center gap-3 border border-espresso/12 bg-oat/25 px-4 py-3.5">
-          <span aria-hidden="true">⌕</span>
+    <div className="omb-toolbar mb-9">
+      <div className="omb-toolbar-row">
+        <label className="omb-search">
+          <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
           <input
             value={state.query}
             onChange={(event) => set("query", event.target.value)}
-            placeholder={isAr ? "ابحثي بكل المتجر..." : "Search the whole store..."}
-            className="w-full bg-transparent text-base outline-none"
+            placeholder={isAr ? "ابحثي بالاسم أو برقم المنتج (OMB-10001)..." : "Search by name or product no. (OMB-10001)..."}
           />
-        </div>
-        <button type="button" onClick={() => setOpen((value) => !value)} className="omb-btn omb-btn-secondary h-12 px-6">
+          {state.query && (
+            <button type="button" onClick={() => set("query", "")} aria-label={isAr ? "مسح البحث" : "Clear search"} className="omb-search-clear">×</button>
+          )}
+        </label>
+        <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} className={`omb-toolbar-btn ${open ? "is-active" : ""}`}>
+          <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
           {isAr ? "فلترة" : "Filter"}
         </button>
-        <select value={state.sort} onChange={(event) => set("sort", event.target.value)} className="h-12 border border-espresso/12 bg-milk px-5 text-sm font-black text-espresso outline-none">
+        <select value={state.sort} onChange={(event) => set("sort", event.target.value)} className="omb-toolbar-select">
           <option value="featured">{isAr ? "مختاراتنا" : "Featured"}</option>
           <option value="newest">{isAr ? "الأحدث" : "Newest"}</option>
           <option value="price-asc">{isAr ? "السعر: الأقل" : "Price: low to high"}</option>
@@ -136,8 +139,8 @@ function Filters({ locale, products, state, setState, categorySlug }) {
               <div className="mt-3 flex flex-wrap gap-2">
                 {[
                   { id: "all", ar: "الكل", en: "All" },
-                  { id: "girls", ar: "بنات", en: "Girls" },
-                  { id: "boys", ar: "أولاد", en: "Boys" },
+                  { id: "girls", ar: "بناتي", en: "Girls" },
+                  { id: "boys", ar: "صبياني", en: "Boys" },
                 ].map((item) => (
                   <button key={item.id} type="button" onClick={() => set("audience", item.id)} className={`border px-3.5 py-2 text-xs font-black ${state.audience === item.id ? "border-aubergine bg-aubergine text-milk" : "border-espresso/12"}`}>
                     {isAr ? item.ar : item.en}
@@ -233,7 +236,7 @@ function ProductDetail({ locale, product }) {
     if (availableToAdd <= 0 || quantity >= availableToAdd) {
       setNotice(
         availableToAdd <= 0
-          ? isAr ? "نفد من المخزون لهذا الخيار." : "This option is out of stock."
+          ? stock > 0 ? (isAr ? `كل الكمية المتوفرة (${stock}) موجودة بسلتك.` : `All ${stock} available are already in your bag.`) : (isAr ? "نفد من المخزون لهذا الخيار." : "This option is out of stock.")
           : isAr ? `وصلتِ للحد الأقصى المتوفر: ${availableToAdd}.` : `You've reached the maximum available quantity: ${availableToAdd}.`,
       );
       return;
@@ -285,6 +288,13 @@ function ProductDetail({ locale, product }) {
         <div className="lg:sticky lg:top-[190px] lg:self-start">
           <p className="omb-eyebrow-label text-aubergine/60">{isAr ? product.categoryAr || product.category : product.categoryEn || product.category}</p>
           <h1 className="mt-3 text-4xl font-black leading-tight text-espresso sm:text-5xl">{isAr ? product.name : product.nameEn || product.name}</h1>
+          {product.code && (
+            <p className="mt-3 flex items-center gap-2 text-xs font-black tracking-[0.12em] text-espresso/50" dir="ltr">
+              <span>{isAr ? "رقم المنتج" : "Product no."}</span>
+              <span className="select-all text-espresso/70">{product.code}</span>
+              <button type="button" onClick={() => { try { navigator.clipboard?.writeText(product.code); } catch (e) {} }} className="border border-espresso/15 px-2 py-0.5 text-[10px] hover:bg-oat/40">{isAr ? "نسخ" : "Copy"}</button>
+            </p>
+          )}
           <DualPrice usd={displayPrice} compareUsd={comparePrice > displayPrice ? comparePrice : null} locale={locale} className="mt-5" />
           <p className="mt-6 max-w-xl text-base font-semibold leading-8 text-espresso/65">{isAr ? product.descriptionAr : product.descriptionEn}</p>
 
@@ -311,7 +321,7 @@ function ProductDetail({ locale, product }) {
             <div className="mt-8">
               <div className="flex items-center justify-between gap-4">
                 <p className="text-sm font-black">{isAr ? "القياس" : "Size"}</p>
-                <span className="text-xs text-espresso/45">{isAr ? "اختاري القياس قبل الإضافة" : "Choose a size before adding"}</span>
+                {!size && <span className="text-xs text-espresso/45">{isAr ? "اختاري القياس قبل الإضافة" : "Choose a size before adding"}</span>}
               </div>
               <div className="mt-3 flex flex-wrap gap-2.5">
                 {product.sizes.map((item) => {
@@ -338,13 +348,15 @@ function ProductDetail({ locale, product }) {
               <p className="mt-2 text-xs text-espresso/50">
                 {availableToAdd > 0
                   ? isAr ? `متوفر للإضافة الآن: ${availableToAdd}` : `Available to add now: ${availableToAdd}`
-                  : isAr ? "نفد من المخزون" : "Out of stock"}
+                  : stock > 0
+                    ? isAr ? `كل الكمية المتوفرة (${stock}) موجودة بسلتك.` : `All ${stock} available are already in your bag.`
+                    : isAr ? "نفد من المخزون" : "Out of stock"}
               </p>
             )}
           </div>
 
           <button type="button" onClick={add} disabled={outOfStock || (hasSizes && !size) || availableToAdd <= 0} className="omb-btn omb-btn-primary mt-7 h-14 w-full text-base disabled:cursor-not-allowed disabled:opacity-40">
-            {outOfStock ? (isAr ? "نفد من المخزون" : "Out of stock") : isAr ? "إضافة للسلة" : "Add to bag"}
+            {outOfStock ? (isAr ? "نفد من المخزون" : "Out of stock") : (hasSizes && size && stock > 0 && availableToAdd <= 0) ? (isAr ? "الكمية كلها بالسلة" : "All in your bag") : isAr ? "إضافة للسلة" : "Add to bag"}
           </button>
           {notice && <p className="mt-4 border border-aubergine/20 bg-aubergine/5 px-4 py-3 text-sm font-black text-aubergine">{notice}</p>}
         </div>
@@ -361,6 +373,25 @@ function CartPage({ locale }) {
   function refresh() {
     setItems(getCartDetailed());
   }
+
+  // Keep the list in sync with the real cart: it is emptied after an order is placed (even from
+  // another tab) and the page can be restored from the browser's back/forward cache.
+  useEffect(() => {
+    const sync = () => setItems(getCartDetailed());
+    const onShow = () => sync();
+    const onVisible = () => { if (document.visibilityState === "visible") sync(); };
+    window.addEventListener("omb:cart-updated", sync);
+    window.addEventListener("storage", sync);
+    window.addEventListener("pageshow", onShow);
+    document.addEventListener("visibilitychange", onVisible);
+    sync();
+    return () => {
+      window.removeEventListener("omb:cart-updated", sync);
+      window.removeEventListener("storage", sync);
+      window.removeEventListener("pageshow", onShow);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
 
   function change(item, delta) {
     const nextQuantity = Number(item.quantity) + delta;
@@ -389,6 +420,7 @@ function CartPage({ locale }) {
                 <img src={item.color?.image || item.product.image} alt="" className="aspect-[4/5] w-full object-cover" />
                 <div>
                   <h2 className="font-black text-espresso">{isAr ? item.product.name : item.product.nameEn || item.product.name}</h2>
+                  {item.product.code && <p className="mt-0.5 text-[11px] font-bold tracking-widest text-espresso/45" dir="ltr">{item.product.code}</p>}
                   <p className="mt-1 text-xs text-espresso/55">{item.color ? (isAr ? item.color.nameAr : item.color.nameEn) : ""}{item.size !== "default" ? ` · ${item.size}` : ""}</p>
                   <DualPrice usd={item.price} locale={locale} compact className="mt-3" />
                   <button type="button" onClick={() => { removeCartItem(item.key); refresh(); }} className="mt-3 text-xs font-black text-aubergine underline">{isAr ? "إزالة" : "Remove"}</button>
@@ -445,22 +477,22 @@ const infoPages = {
     eyebrow: "CUSTOMER CARE",
     titleAr: "طرق الشحن",
     titleEn: "Shipping",
-    bodyAr: "صفحة الشحن جاهزة للربط بسياسات المدن، المدد والتكاليف الفعلية عند اعتماد عمليات التوصيل.",
-    bodyEn: "The shipping page is ready for the final city coverage, delivery times and fees once operations are approved.",
+    bodyAr: "طريقتين لوصول طلبك، اختاري الأنسب إلك وقت إتمام الطلب.",
+    bodyEn: "Two ways to receive your order — pick the one that suits you at checkout.",
   },
   "services/returns": {
     eyebrow: "CUSTOMER CARE",
     titleAr: "سياسة الإرجاع",
     titleEn: "Return policy",
-    bodyAr: "مكان مخصص لسياسة الاستبدال والإرجاع النهائية. لن نعرض شروطاً تجارية غير معتمدة قبل تثبيتها من الإدارة.",
-    bodyEn: "A dedicated home for the final exchange and returns policy. No unapproved commercial terms are presented before management confirms them.",
+    bodyAr: "إرجاع بسيط وواضح للطلبات اللي تم تسليمها.",
+    bodyEn: "A simple, clear return process for delivered orders.",
   },
   "services/faq": {
     eyebrow: "CUSTOMER CARE",
     titleAr: "الأسئلة الشائعة",
     titleEn: "FAQ",
-    bodyAr: "هذه الصفحة جاهزة للأسئلة المتكررة حول القياسات، الطلبات، الشحن والحسابات عندما يتم اعتماد الإجابات التشغيلية.",
-    bodyEn: "This page is ready for common questions about sizing, orders, shipping and accounts once the operational answers are approved.",
+    bodyAr: "أجوبة سريعة على أكتر الأسئلة.",
+    bodyEn: "Quick answers to the most common questions.",
   },
   rewards: {
     eyebrow: "OH MY BABY REWARDS",
@@ -478,7 +510,7 @@ const infoPages = {
   },
 };
 
-function InfoPage({ locale, page }) {
+function InfoPage({ locale, page, kind }) {
   const isAr = locale === "ar";
   return (
     <PageShell
@@ -487,15 +519,26 @@ function InfoPage({ locale, page }) {
       title={isAr ? page.titleAr : page.titleEn}
       description={isAr ? page.bodyAr : page.bodyEn}
     >
-      <a href="/" className="omb-btn omb-btn-primary">
-        {isAr ? "العودة للرئيسية" : "Back home"}
-      </a>
+      {kind ? <ServiceBody locale={locale} kind={kind} /> : (
+        <a href="/" className="omb-btn omb-btn-primary">
+          {isAr ? "العودة للرئيسية" : "Back home"}
+        </a>
+      )}
     </PageShell>
   );
 }
 
 function SocialPlaceholder({ locale, network }) {
   const isAr = locale === "ar";
+  const target = socialUrl(network);
+  useEffect(() => { if (target && network !== "follow") window.location.replace(target); }, [target, network]);
+  if (network === "follow") {
+    return (
+      <PageShell locale={locale} eyebrow="OH MY BABY SOCIAL" title={isAr ? "تابعونا" : "Follow us"} description={isAr ? "لقيونا على فيسبوك وإنستغرام وواتساب." : "Find us on Facebook, Instagram and WhatsApp."}>
+        <FollowPage locale={locale} />
+      </PageShell>
+    );
+  }
   return (
     <PageShell
       locale={locale}
@@ -538,11 +581,11 @@ function WorldLanding({ locale, worldId }) {
 }
 
 const categorySearchAliases = {
-  newborn: "مولود مواليد حديث الولادة حديثي الولادة newborn baby",
+  newborn: "رضيع رضع الرضع مولود مواليد حديث الولادة حديثي الولادة newborn infant infants baby",
   girls: "بنت بنات بناتي girls girl",
   boys: "ولد أولاد اولاد صبي صبياني boys boy",
   shoes: "حذاء أحذية احذية جزمة جزم shoes shoe",
-  accessories: "اكسسوار اكسسوارات إكسسوار إكسسوارات تفاصيل details accessories",
+  accessories: "اكسسوار اكسسوارات إكسسوار إكسسوارات مستلزمات حرامات حرام تفاصيل details accessories supplies blankets",
   decor: "تزيين زينة استقبال مولود ديكور decor newborn welcome",
   mobility: "عربة عرباية عربايات مقعد مقاعد stroller strollers seat seats",
   gifts: "هدية هدايا gift gifts",
@@ -550,10 +593,13 @@ const categorySearchAliases = {
 };
 
 const subcategorySearchAliases = {
-  bodysuits: "بودي بدي bodysuit bodysuits",
+  bodysuits: "افرول أفرول بودي بدي overall overalls bodysuit bodysuits",
   sets: "طقم أطقم اطقم set sets",
   pajamas: "بيجاما بيجامات pajamas pyjamas",
   rompers: "سالوبيت romper rompers",
+  robes: "روب ديشمبر دشمبر روب robe bathrobe",
+  sleepsacks: "كيس نوم للنوم كيس للنوم sleeping bag sleepsack",
+  blankets: "حرام حرامات بطانية بطانيات blanket blankets",
   pants: "بنطال بناطيل جينز jeans pants trousers",
   knitwear: "كنزة كنزات سويتر sweater knitwear",
   dresses: "فستان فساتين dress dresses",
@@ -597,6 +643,9 @@ export default function CatalogPage({ locale = "ar", path = "/" }) {
 
   if (type === "product" && slug) {
     const product = products.find((item) => String(item.id) === String(slug) || item.slug === slug);
+    if (product && isProductOutOfStock(product)) {
+      return <PageShell locale={locale} eyebrow="OH MY BABY" title={isAr ? "نفد من المخزون" : "Out of stock"} description={isAr ? "هذه القطعة غير متوفرة حالياً. تصفح قطعاً أخرى من المتجر." : "This piece is currently unavailable. Browse other pieces."}><a href="/products" className="omb-btn omb-btn-primary">{isAr ? "تصفح المنتجات" : "Browse products"}</a></PageShell>;
+    }
     return product ? <ProductDetail locale={locale} product={product} /> : <PageShell locale={locale} eyebrow="OH MY BABY" title={isAr ? "المنتج غير موجود" : "Product not found"} description={isAr ? "جربي منتجاً آخر من نفس القسم." : "Try another product from the same category."}><a href="/products" className="omb-btn omb-btn-primary">{isAr ? "تصفح المنتجات" : "Browse products"}</a></PageShell>;
   }
 
@@ -605,7 +654,14 @@ export default function CatalogPage({ locale = "ar", path = "/" }) {
   if (type === "wishlist") return <WishlistPage locale={locale} />;
   if (type === "account") return <CustomerAccountPage locale={locale} />;
   if (type === "category" && slug === "clothing") return <WorldLanding locale={locale} worldId="fashion" />;
-  if (type === "category" && slug === "baby-world") return <WorldLanding locale={locale} worldId="baby-world" />;
+  // "Baby World" (decor, strollers, gifts, toys) is not open yet: show a coming-soon page.
+  if (type === "category" && ["baby-world", "decor", "mobility", "gifts", "baby-essentials"].includes(slug)) {
+    return (
+      <PageShell locale={locale} eyebrow="COMING SOON" title={isAr ? "قريباً" : "Coming soon"} description={isAr ? "هذا القسم قيد التجهيز وسيُفتح قريباً. تابعونا!" : "This section is on its way and will open soon. Stay tuned!"}>
+        <a href="/" className="omb-btn omb-btn-primary">{isAr ? "العودة للرئيسية" : "Back home"}</a>
+      </PageShell>
+    );
+  }
 
   const titleMap = {
     "new-arrivals": { ar: "وصل حديثاً", en: "New arrivals" },
@@ -638,10 +694,13 @@ export default function CatalogPage({ locale = "ar", path = "/" }) {
       offers: "offers",
     };
     if (collectionSlug && sectionMap[collectionSlug]) base = base.filter((product) => product.sections?.includes(sectionMap[collectionSlug]));
+    if (collectionSlug === "new-arrivals" || collectionSlug === "best-sellers") base = base.filter((product) => !isProductOutOfStock(product));
 
     const filtered = base.filter((product) => {
       const q = normalizeSearchText(filters.query);
       const haystack = normalizeSearchText([
+        product.code,
+        String(product.code || "").replace(/\D/g, ""),
         product.name,
         product.nameEn,
         product.categoryAr,
@@ -704,7 +763,7 @@ export default function CatalogPage({ locale = "ar", path = "/" }) {
 
   const infoKey = cleanPath.replace(/^\//, "");
   if (infoPages[infoKey]) {
-    return <InfoPage locale={locale} page={infoPages[infoKey]} />;
+    return <InfoPage locale={locale} page={infoPages[infoKey]} kind={infoKey.startsWith("services/") ? infoKey.split("/")[1] : null} />;
   }
   if (type === "social" && slug) {
     return <SocialPlaceholder locale={locale} network={slug} />;

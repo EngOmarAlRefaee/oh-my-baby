@@ -1,7 +1,79 @@
 import React, { useEffect, useState } from "react";
 import { apiFetch } from "../lib/api";
+import ShamCashCard from "./ShamCashCard";
 
 const money = (value) => `${Number(value || 0).toFixed(2)}$`;
+
+function TeamDuesPanel({ isAr, onDone }) {
+  const [team, setTeam] = useState(null);
+  const [err, setErr] = useState("");
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const loadTeam = () => apiFetch("/api/admin/my-commissions/team-dues").then(setTeam).catch((e) => setErr(e.message));
+  useEffect(() => {
+    loadTeam();
+    const timer = window.setInterval(loadTeam, 15000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  async function act(path, confirmText, extra = {}) {
+    if (busy || !window.confirm(confirmText)) return;
+    setBusy(true); setErr(""); setMsg("");
+    try {
+      const r = await apiFetch(`/api/admin/my-commissions/team-dues/${path}`, { method: "POST", body: JSON.stringify({ confirm: true, ...extra }) });
+      setMsg(r.message || "");
+      await loadTeam();
+      onDone?.();
+    } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  }
+
+  if (!team) return err ? <p className="mt-6 text-sm font-bold text-red-700">{err}</p> : null;
+  const total = Number(team.total_due_usd || 0);
+
+  return (
+    <section className="mt-6 overflow-hidden rounded-2xl border border-espresso/10">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-oat/20 p-4">
+        <h2 className="font-black text-espresso">{isAr ? "مستحقات فريق الأدمن (للأدمن الرئيسي)" : "Team dues (primary admin)"}</h2>
+        <strong className="text-lg text-red-700">{money(total)}</strong>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[520px] text-sm">
+          <thead className="bg-milk text-xs font-black text-espresso/55"><tr>
+            <th className="p-3 text-start">{isAr ? "الأدمن" : "Admin"}</th>
+            <th className="p-3 text-center">{isAr ? "المستحق" : "Due"}</th>
+            <th className="p-3 text-center">{isAr ? "متأخر" : "Overdue"}</th>
+            <th className="p-3 text-center">{isAr ? "طلب تأكيد" : "Claim"}</th>
+          </tr></thead>
+          <tbody>
+            {team.admins.map((a) => (
+              <tr key={a.id} className="border-t border-espresso/10">
+                <td className="p-3 font-black">{a.name}</td>
+                <td className="p-3 text-center font-black text-red-700">{money(a.due_usd)}</td>
+                <td className="p-3 text-center">{a.overdue_usd > 0 ? money(a.overdue_usd) : "—"}</td>
+                <td className="p-3 text-center">{a.pending_claim ? (isAr ? "بانتظار الأونر" : "Pending") : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex flex-wrap items-center gap-3 border-t border-espresso/10 p-4">
+        {team.can_transfer && <button disabled={busy || total <= 0 || !team.sham_ready} className="omb-btn omb-btn-primary"
+          onClick={() => act("transfer", isAr ? `تحويل ${money(total)} للأونر عبر شام كاش الآن؟ هذا تحويل حقيقي.` : `Transfer ${money(total)} to the owner via Sham Cash now? This is a real transfer.`)}>
+          {isAr ? "تحويل للأونر عبر شام كاش" : "Transfer via Sham Cash"}
+        </button>}
+        {team.can_transfer && <button disabled={busy || total <= 0} className="omb-btn omb-btn-secondary"
+          onClick={() => act("external", isAr ? "هل حوّلت المبلغ خارج النظام؟ سيُرسل للأونر طلب تأكيد." : "Did you transfer outside the system? The owner will get a confirmation request.")}>
+          {isAr ? "حوّلت خارج النظام" : "Transferred externally"}
+        </button>}
+        {!team.sham_ready && <span className="text-xs font-bold text-espresso/55">{isAr ? "حساب شام كاش غير مربوط بعد." : "Sham Cash is not linked yet."}</span>}
+        {team.recipient_hint && <span className="text-xs text-espresso/45">{isAr ? "حساب الأونر: " : "Owner account: "}{team.recipient_hint}</span>}
+      </div>
+      {err && <p className="px-4 pb-3 text-sm font-bold text-red-700">{err}</p>}
+      {msg && <p className="px-4 pb-3 text-sm font-bold text-green-800">{msg}</p>}
+    </section>
+  );
+}
 
 export default function AdminCommissionsPage({ locale = "ar" }) {
   const isAr = locale === "ar";
@@ -20,7 +92,13 @@ export default function AdminCommissionsPage({ locale = "ar" }) {
     }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    const timer = window.setInterval(load, 15000);
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+    return () => { window.clearInterval(timer); window.removeEventListener("focus", onFocus); };
+  }, []);
 
   async function claimTransfer() {
     if (busy || !data) return;
@@ -77,6 +155,22 @@ export default function AdminCommissionsPage({ locale = "ar" }) {
 
         {data && (
           <>
+            {data.locked && <p className="mt-6 rounded-xl border border-red-300 bg-red-50 p-4 text-sm font-bold text-red-700">{isAr ? `حسابك مقفل حتى تسدد ${money(data.overdue_usd)} ويؤكد الأونر الاستلام. بعدها يفتح النظام تلقائياً.` : `Your workspace is locked until you pay ${money(data.overdue_usd)} and the owner confirms.`}</p>}
+
+            {data.stats && (
+              <section className="mt-6 grid gap-3 sm:grid-cols-3">
+                {[
+                  [isAr ? "قطع أدخلتها" : "Pieces entered", data.stats.entered_pieces],
+                  [isAr ? "قطع مباعة" : "Pieces sold", data.stats.sold_pieces],
+                  [isAr ? "عمولة هذا الأسبوع" : "This week", money(data.stats.week_commission_usd)],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-2xl border border-espresso/10 bg-oat/20 p-5"><p className="text-xs font-black text-aubergine/60">{label}</p><strong className="mt-2 block text-3xl font-black text-espresso">{value}</strong></div>
+                ))}
+              </section>
+            )}
+
+            {data.can_view_team && <TeamDuesPanel isAr={isAr} onDone={load} />}
+
             <section className="mt-8 grid gap-4 sm:grid-cols-2">
               <div className="rounded-2xl border border-espresso/10 bg-oat/20 p-6">
                 <p className="text-xs font-black text-aubergine/60">{isAr ? "المستحق عليك حالياً" : "Current amount due"}</p>
@@ -119,6 +213,10 @@ export default function AdminCommissionsPage({ locale = "ar" }) {
                   <p>{isAr ? "الأونر قال إن التحويل لم يصل. المستحق بقي كما هو." : "The owner reported that the transfer was not received. Your due remains unchanged."}</p>
                   {claim.owner_note && <p className="mt-2">{isAr ? "ملاحظة الأونر: " : "Owner note: "}{claim.owner_note}</p>}
                 </div>
+              )}
+
+              {data.can_claim_transfer && !pending && (
+                <ShamCashCard account={data.owner_shamcash} isAr={isAr} amount={due > 0 ? money(due) : null} title={isAr ? "حوّل من تطبيق شام كاش لحساب الأونر هاد، وبعدين اضغط «تم التحويل»" : "Send from the Sham Cash app to this owner account, then press “Transferred”"} />
               )}
 
               {data.can_claim_transfer && due > 0 && !pending && (

@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { lazy, Suspense, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../css/app.css";
+import "../css/omb-fixes.css";
 import Header from "./components/header";
 import VideoHero from "./components/VideoHero";
 import Hero from "./components/Hero";
@@ -14,24 +15,27 @@ import RewardsSection from "./components/RewardsSection";
 import TrustSection from "./components/TrustSection";
 import Footer from "./components/Footer";
 import ScrollMotion from "./components/ui/ScrollMotion";
-import CatalogPage from "./components/CatalogPage";
-import AdminPage from "./components/AdminPage";
+const CatalogPage = lazy(() => import("./components/CatalogPage"));
+const AdminPage = lazy(() => import("./components/AdminPage"));
 import AccountSection from "./components/AccountSection";
-import DeliveryPage from "./components/DeliveryPage";
-import AdminOrdersPage from "./components/AdminOrdersPage";
-import OwnerOperationsPage from "./components/OwnerOperationsPage";
-import AdminCommissionsPage from "./components/AdminCommissionsPage";
-import OwnerDashboardPage from "./components/OwnerDashboardPage";
-import AdminDashboardPage from "./components/AdminDashboardPage";
-import MarketingPage from "./components/MarketingPage";
-import TeamManagementPage from "./components/TeamManagementPage";
-import HelpCenterPage from "./components/HelpCenterPage";
-import OwnerSectionPage from "./components/OwnerSectionPage";
-import StaffWorkspaceHeader from "./components/StaffWorkspaceHeader";
-import DecorationWorkspacePage from "./components/DecorationWorkspacePage";
-import CustomerAccountPage from "./components/CustomerAccountPage";
+const DeliveryPage = lazy(() => import("./components/DeliveryPage"));
+const AdminOrdersPage = lazy(() => import("./components/AdminOrdersPage"));
+const OwnerOperationsPage = lazy(() => import("./components/OwnerOperationsPage"));
+const AdminCommissionsPage = lazy(() => import("./components/AdminCommissionsPage"));
+const OwnerDashboardPage = lazy(() => import("./components/OwnerDashboardPage"));
+const AdminDashboardPage = lazy(() => import("./components/AdminDashboardPage"));
+const MarketingPage = lazy(() => import("./components/MarketingPage"));
+const TeamManagementPage = lazy(() => import("./components/TeamManagementPage"));
+const HelpCenterPage = lazy(() => import("./components/HelpCenterPage"));
+const OwnerSectionPage = lazy(() => import("./components/OwnerSectionPage"));
+const StaffWorkspaceHeader = lazy(() => import("./components/StaffWorkspaceHeader"));
+const DecorationWorkspacePage = lazy(() => import("./components/DecorationWorkspacePage"));
+const CustomerAccountPage = lazy(() => import("./components/CustomerAccountPage"));
 import SupportChatLauncher from "./components/SupportChatLauncher";
-import AdminSupportPage from "./components/AdminSupportPage";
+const AdminSupportPage = lazy(() => import("./components/AdminSupportPage"));
+import { syncCatalogFromServer, PRODUCTS_STORAGE_KEY } from "./data/productStore";
+import { prefetchFeaturedCollection } from "./lib/siteContent";
+const AdminSiteContentPage = lazy(() => import("./components/AdminSiteContentPage"));
 
 function App() {
   const [locale, setLocale] = useState(() => { try { return window.localStorage.getItem("omb-locale") || "ar"; } catch { return "ar"; } });
@@ -69,7 +73,7 @@ function App() {
     };
   }, [pathname]);
 
-  const shell = (children) => <div className="min-h-screen bg-milk text-espresso" dir={isAr ? "rtl" : "ltr"}><div aria-hidden="true" className="omb-dark-stars" />{children}</div>;
+  const shell = (children) => <div className="min-h-screen bg-milk text-espresso" dir={isAr ? "rtl" : "ltr"}><div aria-hidden="true" className="omb-dark-stars" /><Suspense fallback={<div className="grid min-h-[40vh] place-items-center text-sm text-espresso/50">…</div>}>{children}</Suspense></div>;
 
   if (pathname.startsWith("/owner/finance")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><OwnerOperationsPage locale={locale} /><Footer locale={locale} /></>);
   if (pathname.startsWith("/owner/marketing")) return shell(<><Header locale={locale} onLocaleChange={setLocale} darkMode={darkMode} onThemeChange={setDarkMode} /><MarketingPage locale={locale} /><Footer locale={locale} /></>);
@@ -90,6 +94,7 @@ function App() {
   if (pathname.startsWith("/admin/operations")) return shell(<>{adminHeader}<AdminCommissionsPage locale={locale} /></>);
   if (pathname.startsWith("/admin/orders")) return shell(<>{adminHeader}<AdminOrdersPage locale={locale} /></>);
   if (pathname.startsWith("/admin/products")) return shell(<>{adminHeader}<AdminPage locale={locale} /></>);
+  if (pathname.startsWith("/admin/site-content")) return shell(<>{adminHeader}<AdminSiteContentPage locale={locale} /></>);
   if (pathname.startsWith("/admin/decoration")) return shell(<>{adminHeader}<DecorationWorkspacePage locale={locale} /></>);
   if (pathname === "/admin" || pathname === "/admin/") return shell(<>{adminHeader}<AdminDashboardPage locale={locale} /></>);
   if (pathname.startsWith("/delivery")) return shell(<>{deliveryHeader}<DeliveryPage locale={locale} /></>);
@@ -116,4 +121,33 @@ function App() {
   </>);
 }
 
-createRoot(document.getElementById("root")).render(<App />);
+let appRoot = null;
+const mountApp = () => {
+  appRoot = createRoot(document.getElementById("root"));
+  appRoot.render(<App />);
+};
+
+// Speed: never keep the customer staring at a blank page while the catalog downloads.
+// If a cached catalog exists the page renders at once and the fresh catalog/stock is
+// fetched in the background (the page refreshes itself only if something changed).
+// With no cache (first visit) we wait briefly so the first paint already has products.
+const rawCatalog = () => { try { return window.localStorage.getItem(PRODUCTS_STORAGE_KEY) || ""; } catch { return ""; } };
+const refreshInBackground = (before) => {
+  Promise.allSettled([syncCatalogFromServer(), prefetchFeaturedCollection()]).then((results) => {
+    const memoryOnly = Boolean(results[0]?.value?.memoryOnly);
+    if (appRoot && (memoryOnly || rawCatalog() !== before)) appRoot.render(<App key={Date.now()} />);
+  });
+};
+
+if (window.location.pathname.startsWith("/admin/products")) {
+  mountApp();
+} else if (rawCatalog().length > 2) {
+  const before = rawCatalog();
+  mountApp();
+  refreshInBackground(before);
+} else {
+  Promise.race([
+    Promise.allSettled([syncCatalogFromServer(), prefetchFeaturedCollection()]),
+    new Promise((resolve) => window.setTimeout(resolve, 3000)),
+  ]).finally(mountApp);
+}

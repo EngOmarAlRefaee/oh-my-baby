@@ -13,6 +13,7 @@ export default function AdminOrdersPage({ locale = "ar" }) {
   const [selectedDrivers, setSelectedDrivers] = useState({});
   const [selectedReturnDrivers, setSelectedReturnDrivers] = useState({});
   const [busy, setBusy] = useState(null);
+  const [showDone, setShowDone] = useState(false);
   const [error, setError] = useState("");
   const [session, setSession] = useState(null);
 
@@ -101,8 +102,20 @@ export default function AdminOrdersPage({ locale = "ar" }) {
 
         {error && <p className="mt-6 border border-red-300 bg-red-50 p-3 text-red-700">{error}</p>}
 
+        {(() => {
+          const doneCount = (data.orders || []).filter((o) => o.status === "delivered").length;
+          const activeCount = (data.orders || []).length - doneCount;
+          return (
+            <div className="mt-7 grid gap-3 sm:grid-cols-3">
+              <div className="border border-espresso/10 bg-oat/20 p-5"><p className="text-xs font-black text-aubergine/55">{isAr ? "طلبات تمت (مسلّمة)" : "Completed orders"}</p><strong className="mt-2 block text-3xl">{doneCount}</strong></div>
+              <div className="border border-espresso/10 bg-oat/20 p-5"><p className="text-xs font-black text-aubergine/55">{isAr ? "طلبات جارية" : "In progress"}</p><strong className="mt-2 block text-3xl">{activeCount}</strong></div>
+              <button type="button" onClick={() => setShowDone((v) => !v)} className="border border-espresso/10 bg-milk p-5 text-start text-sm font-black hover:border-aubergine/30">{showDone ? (isAr ? "إخفاء الطلبات المكتملة" : "Hide completed orders") : (isAr ? "عرض الطلبات المكتملة" : "Show completed orders")}</button>
+            </div>
+          );
+        })()}
+
         <div className="mt-8 grid gap-5">
-          {data.orders.map((order) => {
+          {(showDone ? data.orders : data.orders.filter((o) => o.status !== "delivered")).map((order) => {
             const selectedDriver = selectedDrivers[order.id] || "";
             const selectedReturnDriver = selectedReturnDrivers[order.id] || "";
             return (
@@ -128,13 +141,14 @@ export default function AdminOrdersPage({ locale = "ar" }) {
                     <p className="mb-3 text-xs font-black text-aubergine/65">{isAr ? "مسار المرتجع" : "Return flow"}</p>
                     <ReturnTimeline status={order.status} locale={locale} compact />
                     {order.return_reason && <p className="mt-3 text-xs text-espresso/55"><b>{isAr ? "سبب الإرجاع" : "Return reason"}:</b> {order.return_reason}</p>}
+                    {(order.items || []).some((i) => Number(i.return_requested_quantity) > 0) && <p className="mt-2 text-xs text-espresso/65"><b>{(order.items || []).every((i) => Number(i.return_requested_quantity) >= Number(i.quantity)) ? (isAr ? "إرجاع كامل للطلب" : "Full return") : (isAr ? "إرجاع جزئي" : "Partial return")} — {isAr ? "القطع المطلوب إرجاعها" : "Pieces to return"}:</b> {(order.items || []).filter((i) => Number(i.return_requested_quantity) > 0).map((i) => `${i.return_requested_quantity}× ${isAr ? i.name_ar : (i.name_en || i.name_ar)}${[i.color_name, i.size].filter(Boolean).length ? " (" + [i.color_name, i.size].filter(Boolean).join(" · ") + ")" : ""}`).join("، ")}</p>}
                   </div>
                 )}
 
                 <div className="mt-5 overflow-x-auto">
                   <table className="w-full min-w-[680px] text-sm">
                     <thead><tr className="border-b border-espresso/10 text-start text-xs text-espresso/50"><th className="py-2 text-start">{isAr ? "المنتج" : "Product"}</th><th className="text-start">{isAr ? "الخيار" : "Variant"}</th><th>{isAr ? "الكمية" : "Qty"}</th><th>{isAr ? "السعر" : "Price"}</th><th>{isAr ? "عرض؟" : "Offer?"}</th></tr></thead>
-                    <tbody>{order.items?.map((item) => <tr key={item.id} className="border-b border-espresso/5"><td className="py-3 font-bold">{isAr ? item.name_ar : (item.name_en || item.name_ar)}</td><td>{[item.color_name, item.size].filter(Boolean).join(" · ")}</td><td className="text-center">{item.quantity}</td><td className="text-center">${Number(item.line_total_usd).toFixed(2)}</td><td className="text-center">{item.is_offer ? "✓" : "—"}</td></tr>)}</tbody>
+                    <tbody>{order.items?.map((item) => <tr key={item.id} className="border-b border-espresso/5"><td className="py-3 font-bold">{isAr ? item.name_ar : (item.name_en || item.name_ar)}{Number(item.return_requested_quantity) > 0 && ["return_requested", "return_approved", "return_assigned", "return_in_transit"].includes(order.status) && <span className="ms-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-800">{isAr ? `مرتجع ×${item.return_requested_quantity}` : `Return ×${item.return_requested_quantity}`}</span>}{Number(item.returned_quantity) > 0 && order.status === "returned" && <span className="ms-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-800">{isAr ? `رجع ×${item.returned_quantity}` : `Returned ×${item.returned_quantity}`}</span>}</td><td>{[item.color_name, item.size].filter(Boolean).join(" · ")}</td><td className="text-center">{item.quantity}</td><td className="text-center">${Number(item.line_total_usd).toFixed(2)}</td><td className="text-center">{item.is_offer ? "✓" : "—"}</td></tr>)}</tbody>
                   </table>
                 </div>
 
@@ -157,7 +171,30 @@ export default function AdminOrdersPage({ locale = "ar" }) {
 
                   {order.status === "out_for_delivery" && <div className="flex flex-wrap items-center justify-between gap-3"><p className="font-bold">{isAr ? `السائق ${order.delivery_user?.name || ""} بدأ التوصيل.` : "Driver started delivery."}</p>{canUseDelivery && <a href="/delivery" className="omb-btn omb-btn-secondary">{isAr ? "تدخل مكان السائق" : "Operate as fallback"}</a>}</div>}
 
-                  {order.status === "delivered" && <p className="font-bold">{isAr ? "تم التسليم ✓ — تم احتساب الطلب للمكافآت والعمولة." : "Delivered ✓ — rewards and commission processed."}</p>}
+                  {order.status === "delivered" && (() => {
+                    const c = order.commission;
+                    const confirmed = Boolean(order.customer_confirmed_at);
+                    let text;
+                    if (!confirmed) {
+                      const due = order.delivered_at ? new Date(new Date(order.delivered_at).getTime() + 12 * 3600 * 1000) : null;
+                      text = isAr
+                        ? `تم التسليم ✓ — بانتظار تأكيد الاستلام (يتأكد تلقائياً بعد 12 ساعة${due ? ` ≈ ${due.toLocaleString("ar")}` : ""}). العمولة لم تُحتسب بعد.`
+                        : "Delivered ✓ — waiting for receipt confirmation (auto-confirms after 12h). Commission not charged yet.";
+                    } else if (c?.status === "excluded") {
+                      text = isAr ? "تم التسليم ✓ — طلب عروض فقط: لا توجد عمولة." : "Delivered ✓ — offers-only order: no commission.";
+                    } else if (c?.status === "reversed") {
+                      text = isAr ? "تم التسليم ✓ — العمولة انعكست بسبب المرتجع." : "Delivered ✓ — commission reversed (return).";
+                    } else if (c?.status === "unassigned") {
+                      text = isAr ? "تم التسليم ✓ — تعذر تحديد صاحب المنتج، العمولة معلّقة." : "Delivered ✓ — no product owner found; commission on hold.";
+                    } else if (c?.status === "deferred") {
+                      text = isAr ? "تم التسليم ✓ — عمولة الديكور تُسوّى بمسارها الخاص." : "Delivered ✓ — decoration commission settles separately.";
+                    } else if (c) {
+                      text = isAr ? `تم التسليم ✓ — تم احتساب العمولة (${Number(c.amount_usd || 0).toFixed(2)}$) على أصحاب المنتجات.` : `Delivered ✓ — commission charged (${Number(c.amount_usd || 0).toFixed(2)}$).`;
+                    } else {
+                      text = isAr ? "تم التسليم ✓" : "Delivered ✓";
+                    }
+                    return <p className="font-bold">{text}</p>;
+                  })()}
 
                   {order.status === "return_requested" && canManageReturns && (
                     <div>
@@ -193,7 +230,7 @@ export default function AdminOrdersPage({ locale = "ar" }) {
               </article>
             );
           })}
-          {!data.orders.length && <p className="border border-espresso/10 p-8 text-center text-espresso/55">{isAr ? "لا توجد طلبات بعد." : "No orders yet."}</p>}
+          {!(showDone ? data.orders : data.orders.filter((o) => o.status !== "delivered")).length && <p className="border border-espresso/10 p-8 text-center text-espresso/55">{isAr ? "لا توجد طلبات بعد." : "No orders yet."}</p>}
         </div>
       </div>
     </main>

@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CatalogProduct;
 use App\Models\CommissionSettlementRequest;
+use App\Models\OrderItem;
 use App\Models\CommissionShare;
 use App\Models\CommissionTransfer;
 use App\Models\FinancialLedgerEntry;
@@ -10,10 +12,12 @@ use App\Models\FinancialSettlement;
 use App\Models\User;
 use App\Services\CommissionService;
 use App\Services\FinancialLedgerService;
+use App\Support\CommissionLock;
 use App\Support\PermissionCatalog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class CommissionController extends Controller
@@ -21,6 +25,8 @@ class CommissionController extends Controller
     /** Owner-only finance control center. */
     public function index(Request $request, FinancialLedgerService $ledger): JsonResponse
     {
+        // No cron needed: confirm overdue deliveries whenever a commission screen is opened.
+        try { app(\App\Services\CommissionService::class)->autoConfirmDeliveredOrders(); } catch (\Throwable $e) { report($e); }
         $actor = $request->user();
         abort_unless($actor?->role === 'owner', 403);
 
@@ -46,6 +52,7 @@ class CommissionController extends Controller
                 'phone' => $account->phone,
                 'account_status' => $account->account_status,
                 'is_primary_admin' => (bool) $account->is_primary_admin,
+                'shamcash' => $account->is_primary_admin ? config('ohmybaby.shamcash') : null,
                 'balance_usd' => round($balance, 4),
                 'amount_due_usd' => round($due, 4),
                 'credit_usd' => round(max(0, $balance), 4),
@@ -139,6 +146,8 @@ class CommissionController extends Controller
     /** Admin sees only the current debt, current order shares and unresolved claim. */
     public function myCommissions(Request $request, FinancialLedgerService $ledger): JsonResponse
     {
+        // No cron needed: confirm overdue deliveries whenever a commission screen is opened.
+        try { app(\App\Services\CommissionService::class)->autoConfirmDeliveredOrders(); } catch (\Throwable $e) { report($e); }
         $actor = $request->user();
         abort_unless($actor?->role === 'admin', 403);
         abort_unless(PermissionCatalog::has($actor, 'commissions.self.view'), 403);
@@ -146,7 +155,7 @@ class CommissionController extends Controller
         $due = $ledger->dueFor($actor);
         $canViewOrders = PermissionCatalog::has($actor, 'commissions.self.orders');
         $canClaim = PermissionCatalog::has($actor, 'commissions.self.claim');
-        $window = $this->claimWindow();
+        $window = $this->claimWindow($actor);
 
         $latestClaim = CommissionSettlementRequest::query()
             ->where('account_user_id', $actor->id)
@@ -196,14 +205,53 @@ class CommissionController extends Controller
                 'name' => $actor->name,
             ],
             'amount_due_usd' => round($due, 4),
+            'can_view_team' => PermissionCatalog::has($actor, 'commissions.team.view'),
+            'locked' => CommissionLock::isLocked($actor),
+            'overdue_usd' => CommissionLock::overdueUsd($actor),
+            'stats' => PermissionCatalog::has($actor, 'commissions.self.stats') ? $this->selfStats($actor) : null,
             'open_orders_count' => $orderShares->count(),
             'order_shares' => $orderShares,
             'can_view_orders' => $canViewOrders,
             'can_claim_transfer' => $canClaim,
             'claim_window' => $window,
+            'shamcash' => $actor->is_primary_admin ? config('ohmybaby.shamcash') : null,
+            'owner_shamcash' => config('ohmybaby.owner_shamcash'),
             'active_claim' => $activeClaim,
             // Intentionally no historical settlements/paid totals for Admin.
         ]);
+    }
+
+    /** Personal numbers for the Admin dashboard. */
+    private function selfStats(User $actor): array
+    {
+        $stock = CatalogProduct::query()->where('created_by', $actor->id)->get(['inventory'])
+            ->sum(fn ($p) => collect($p->inventory ?? [])->sum(fn ($v) => max(0, (int) $v)));
+
+        $items = OrderItem::query()
+            ->where('source_admin_user_id', $actor->id)
+            ->with('order:id,status,delivered_at')
+            ->get(array_merge(['id', 'order_id', 'quantity'], Schema::hasColumn('order_items', 'returned_quantity') ? ['returned_quantity'] : []));
+
+        $sold = 0; $inFlight = 0;
+        foreach ($items as $item) {
+            $net = max(0, (int) $item->quantity - (int) $item->returned_quantity);
+            $status = $item->order?->status;
+            if (in_array($status, ['rejected', 'cancelled'], true)) continue;
+            if ($item->order?->delivered_at) $sold += $net;
+            elseif ($status !== 'returned') $inFlight += $net;
+        }
+
+        $since = CommissionLock::cutoff()->copy()->utc();
+        $net = fn ($q) => round(-(float) $q->whereIn('type', ['commission', 'commission_reversal'])->sum('amount_usd'), 4);
+
+        return [
+            'stock_pieces' => (int) $stock,
+            'sold_pieces' => $sold,
+            'in_flight_pieces' => $inFlight,
+            'entered_pieces' => (int) $stock + $sold + $inFlight,
+            'week_commission_usd' => $net(FinancialLedgerEntry::where('account_user_id', $actor->id)->where('created_at', '>=', $since)),
+            'week_started_at' => $since->toIso8601String(),
+        ];
     }
 
     public function submitSettlementClaim(Request $request, FinancialLedgerService $ledger): JsonResponse
@@ -212,7 +260,7 @@ class CommissionController extends Controller
         abort_unless($actor?->role === 'admin', 403);
         abort_unless(PermissionCatalog::has($actor, 'commissions.self.claim'), 403);
 
-        $window = $this->claimWindow();
+        $window = $this->claimWindow($actor);
         if (! $window['open']) {
             throw ValidationException::withMessages([
                 'settlement' => ['إرسال تأكيد التحويل متاح يوم الجمعة فقط.'],
@@ -378,7 +426,7 @@ class CommissionController extends Controller
     }
 
     /** @return array{open: bool, is_friday: bool, local_testing_override: bool, next_friday: string} */
-    private function claimWindow(): array
+    private function claimWindow(?User $actor = null): array
     {
         $now = now()->timezone(config('app.timezone', 'UTC'));
         $isFriday = $now->isFriday();
@@ -386,7 +434,9 @@ class CommissionController extends Controller
         $nextFriday = $isFriday ? $now->copy() : $now->copy()->next(5);
 
         return [
-            'open' => $isFriday || $localOverride,
+            // Open on Fridays, and always while the Admin is locked so they can pay and get unlocked.
+            'open' => $isFriday || $localOverride || CommissionLock::isLocked($actor),
+            'locked' => CommissionLock::isLocked($actor),
             'is_friday' => $isFriday,
             'local_testing_override' => $localOverride,
             'next_friday' => $nextFriday->toDateString(),

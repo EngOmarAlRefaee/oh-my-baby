@@ -25,8 +25,33 @@ return [
         ],
     ],
 
+    'returns' => [
+        // Days after delivery during which the customer can request a return.
+        'window_days' => (int) env('OMB_RETURN_WINDOW_DAYS', 3),
+    ],
+
+    // Sham Cash account of the primary admin (the account the weekly transfer to the owner is sent from).
+    'shamcash' => [
+        'name' => env('OMB_SHAMCASH_NAME', 'صفا محمد نضال الداودي'),
+        'address' => env('OMB_SHAMCASH_ADDRESS', 'd5a79488551602257bc448ada6deff03'),
+        'qr' => '/images/shamcash/primary-admin.png',
+    ],
+
+    // Sham Cash account of the owner: the destination of the weekly transfer from each admin.
+    'owner_shamcash' => [
+        'name' => env('OMB_OWNER_SHAMCASH_NAME', 'عمر محمد الرفاعي'),
+        'address' => env('OMB_OWNER_SHAMCASH_ADDRESS', '7cdca81a107991bf4c2d27f5002716dd'),
+        'qr' => '/images/shamcash/owner.png',
+    ],
+
     'commissions' => [
+        // Lock Admins out (except the dues page) while last week's commission is unpaid.
+        'lock_on_overdue' => filter_var(env('OMB_COMMISSION_LOCK', true), FILTER_VALIDATE_BOOL),
+        'single_piece_usd' => (float) env('OMB_SINGLE_PIECE_COMMISSION_USD', 0.25),
         'normal_order_usd' => (float) env('OMB_NORMAL_ORDER_COMMISSION_USD', 0.50),
+        // Receipt is confirmed automatically this many hours after delivery when the
+        // customer (or a guest) did not confirm it.
+        'auto_confirm_hours' => (int) env('OMB_AUTO_CONFIRM_HOURS', 12),
         'decoration_usd' => (float) env('OMB_DECORATION_COMMISSION_USD', 2.50),
         // Conservative interpretation: any order containing an Offers item does not
         // generate the normal $0.50 commission. Decoration has its own $2.50 rule.

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../lib/api";
 import { WORKSPACE_MODULES } from "../data/workspaceModules";
 import WorkspaceModuleCard from "./ui/WorkspaceModuleCard";
+import StockAlertsBox from "./StockAlertsBox";
 
 function Metric({ label, value, note, priority = false }) {
   return (
@@ -73,6 +74,8 @@ export default function OwnerDashboardPage({ locale = "ar" }) {
             </div>
           )}
         </section>
+
+        <StockAlertsBox locale={locale} />
 
         <section className="mt-9">
           <div className="flex flex-wrap items-end justify-between gap-4">

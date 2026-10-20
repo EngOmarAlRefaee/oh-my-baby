@@ -1,33 +1,21 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 
 import Button from "./ui/Button";
 import Eyebrow from "./ui/Eyebrow";
 import Reveal from "./ui/Reveal";
+import { getCachedFeatured, prefetchFeaturedCollection, resolveFeatured } from "../lib/siteContent";
 
-const activeCampaign = {
-  key: "back-to-school",
-
-  titleAr: "جاهزين لأول يوم.",
-  titleEn: "Ready for the first day.",
-
-  descriptionAr:
-    "اختيارات مدرسية مريحة وعملية، من الملابس والأحذية للتفاصيل اليومية اللي بترافقهم بكل يوم دراسي.",
-
-  descriptionEn:
-    "Comfortable and practical school-day picks, from clothing and shoes to everyday essentials.",
-
-  collectionHref: "/collections/back-to-school",
-  categoriesHref: "/category/clothing",
-
-  image: "/images/home/final/featured-kids.jpg",
-
-  imageAltAr: "تشكيلة العودة إلى المدرسة من OH MY BABY",
-  imageAltEn: "OH MY BABY Back to School collection",
-};
-
-export default function FeaturedCollection({ locale = "ar" }) {
+// `previewContent` lets the admin editor render the exact same section live.
+export default function FeaturedCollection({ locale = "ar", previewContent }) {
   const isAr = locale === "ar";
-  const campaign = activeCampaign;
+  const [saved, setSaved] = useState(() => getCachedFeatured());
+  useEffect(() => {
+    if (previewContent !== undefined) return undefined;
+    let active = true;
+    prefetchFeaturedCollection().then((next) => { if (active && next !== undefined) setSaved(next); });
+    return () => { active = false; };
+  }, [previewContent]);
+  const c = resolveFeatured(previewContent !== undefined ? previewContent : saved, locale);
 
   return (
     <section
@@ -43,20 +31,18 @@ export default function FeaturedCollection({ locale = "ar" }) {
           >
             <div className="flex items-center gap-4">
               <span className="text-[13px] font-bold tracking-[0.18em] text-aubergine">
-                {isAr ? "تشكيلة الموسم" : "SEASONAL COLLECTION"}
+                {c.eyebrow}
               </span>
 
               <span className="h-px w-20 bg-espresso/25" />
             </div>
 
-            <h2 className="mt-5 text-[46px] font-black leading-[1.05] tracking-tight text-espresso sm:text-[62px] lg:text-[76px]">
-              {isAr ? "العودة إلى المدرسة" : "BACK TO SCHOOL"}
+            <h2 className="mt-5 break-words text-[clamp(2.3rem,7vw,4.75rem)] font-black leading-[1.05] tracking-tight text-espresso">
+              {c.sectionTitle}
             </h2>
 
-            <p className="mt-5 max-w-xl text-[18px] font-semibold leading-8 text-espresso/80">
-              {isAr
-                ? "تشكيلة مختارة للموسم الحالي، مصممة لأيام المدرسة براحة وأناقة."
-                : "A seasonal edit designed for comfortable, stylish school days."}
+            <p className="mt-5 max-w-xl text-[clamp(1rem,1.5vw,1.125rem)] font-semibold leading-8 text-espresso/80">
+              {c.sectionSubtitle}
             </p>
           </div>
         </Reveal>
@@ -67,39 +53,37 @@ export default function FeaturedCollection({ locale = "ar" }) {
             aria-hidden="true"
             className="pointer-events-none absolute -right-5 top-2 z-0 text-[110px] font-black leading-none text-espresso/[0.035] sm:text-[150px] lg:text-[190px]"
           >
-            BTS
+            {c.watermark}
           </div>
 
           <div className="relative z-10 grid lg:grid-cols-[1.18fr_0.82fr]">
             {/* IMAGE */}
             <a
               data-motion="media"
-              href={campaign.collectionHref}
-              className="group relative min-h-[560px] overflow-hidden bg-espresso lg:min-h-[760px]"
+              href={c.ctaHref}
+              style={{ minHeight: "clamp(320px, 52vw, 760px)" }}
+              className="group relative min-w-0 overflow-hidden bg-espresso"
             >
               <img
-                src={campaign.image}
+                src={c.image}
                 loading="lazy"
                 decoding="async"
-                alt={isAr ? campaign.imageAltAr : campaign.imageAltEn}
-                className="absolute inset-0 h-full w-full object-cover object-[right_28%] transition-transform duration-1000 ease-out group-hover:scale-[1.025]"
+                alt={c.imageAlt}
+                style={{ objectPosition: `${c.imageX}% ${c.imageY}%`, transform: c.imageZoom > 1 ? `scale(${c.imageZoom})` : undefined, transformOrigin: `${c.imageX}% ${c.imageY}%` }}
+                className="absolute inset-0 h-full w-full object-cover transition-transform duration-1000 ease-out"
               />
 
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/5 to-transparent" />
 
               <div className="absolute left-6 top-6 border border-white/40 bg-black/10 px-4 py-2 backdrop-blur-sm">
                 <span className="text-[10px] font-bold tracking-[0.25em] text-white">
-                  SEASON 01
+                  {c.seasonTag}
                 </span>
               </div>
 
               <div className="absolute bottom-7 left-7 text-left text-white sm:bottom-9 sm:left-9">
-                <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/70">
-                  SEASONAL EDIT
-                </p>
-
-                <p className="mt-2 text-2xl font-black tracking-wide sm:text-3xl">
-                  BACK TO SCHOOL
+                <p className="text-2xl font-black tracking-wide sm:text-3xl">
+                  {c.sectionTitle}
                 </p>
               </div>
             </a>
@@ -107,27 +91,23 @@ export default function FeaturedCollection({ locale = "ar" }) {
             {/* CONTENT */}
             <div
               data-motion="copy"
-              className="relative flex items-center px-7 py-14 sm:px-12 lg:px-14 lg:py-20"
+              className="relative flex min-w-0 items-center px-6 py-12 sm:px-10 lg:px-12 lg:py-16"
             >
               <Reveal className="relative z-10 max-w-lg">
                 <Eyebrow tone="pistachio">
-                  {isAr ? "موسم العودة للمدرسة" : "Back to School Edit"}
+                  {c.badge}
                 </Eyebrow>
 
-                <h3 className="mt-5 text-[42px] font-black leading-[1.15] tracking-tight text-espresso sm:text-[54px]">
-                  {isAr ? campaign.titleAr : campaign.titleEn}
+                <h3 className="mt-5 break-words text-[clamp(2rem,4.2vw,3.4rem)] font-black leading-[1.15] tracking-tight text-espresso">
+                  {c.headline}
                 </h3>
 
-                <p className="mt-6 max-w-lg text-[19px] font-semibold leading-9 text-espresso/90">
-                  {isAr ? campaign.descriptionAr : campaign.descriptionEn}
+                <p className="mt-6 max-w-lg break-words text-[clamp(1rem,1.5vw,1.19rem)] font-semibold leading-8 text-espresso/90">
+                  {c.description}
                 </p>
 
                 <div className="mt-8 flex flex-wrap gap-2">
-                  {[
-                    isAr ? "ملابس" : "Clothing",
-                    isAr ? "أحذية" : "Shoes",
-                    isAr ? "يوميات المدرسة" : "School Essentials",
-                  ].map((item) => (
+                  {c.tags.map((item) => (
                     <span
                       key={item}
                       className="border border-espresso/15 bg-milk/60 px-4 py-2 text-[12px] font-bold text-espresso/70"
@@ -138,15 +118,15 @@ export default function FeaturedCollection({ locale = "ar" }) {
                 </div>
 
                 <div className="mt-10 flex flex-wrap items-center gap-5">
-                  <Button href={campaign.collectionHref} variant="primary">
-                    {isAr ? "اكتشف تشكيلة المدرسة" : "Explore the collection"}
+                  <Button href={c.ctaHref} variant="primary">
+                    {c.cta}
                   </Button>
 
                   <a
-                    href={campaign.categoriesHref}
+                    href={c.secondaryHref}
                     className="omb-link border-espresso/30 text-espresso"
                   >
-                    {isAr ? "تسوّق كل الأقسام" : "Shop all categories"}
+                    {c.secondary}
                   </a>
                 </div>
               </Reveal>

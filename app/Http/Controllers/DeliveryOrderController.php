@@ -26,7 +26,14 @@ class DeliveryOrderController extends Controller
 
         DataScope::applyDeliveryOrders($query, $request->user());
 
-        return response()->json(['orders' => $query->latest()->limit(150)->get()]);
+        $deliveredTotal = (clone $query)->where('status', 'delivered')->count();
+        $returnedTotal = (clone $query)->where('status', 'returned')->count();
+
+        return response()->json([
+            'orders' => $query->latest()->limit(150)->get(),
+            'delivered_total' => $deliveredTotal,
+            'returned_total' => $returnedTotal,
+        ]);
     }
 
     public function startDelivery(Request $request, Order $order): JsonResponse
@@ -89,7 +96,32 @@ class DeliveryOrderController extends Controller
         $data = $request->validate([
             'reason' => ['required', 'string', 'min:3', 'max:2000'],
             'delivery_note' => ['nullable', 'string', 'max:3000'],
+            'returned_items' => ['nullable', 'array'],
+            'returned_items.*.id' => ['required', 'integer'],
+            'returned_items.*.quantity' => ['required', 'integer', 'min:0'],
         ]);
+
+        // The driver chooses, per item, how many pieces are being brought back
+        // (omitted list = the whole order). Saved now; the commission is settled when the store receives them.
+        $order->loadMissing('items');
+        $picked = collect($data['returned_items'] ?? [])->keyBy('id');
+        $totalBack = 0;
+        foreach ($order->items as $item) {
+            $qty = $picked->isEmpty() ? (int) $item->quantity : (int) ($picked->get($item->id)['quantity'] ?? 0);
+            if ($qty > (int) $item->quantity) {
+                return response()->json(['message' => 'الكمية المرتجعة أكبر من الكمية المطلوبة.'], 422);
+            }
+            $totalBack += $qty;
+        }
+        if ($totalBack < 1) {
+            return response()->json(['message' => 'اختر قطعة واحدة على الأقل مرتجعة.'], 422);
+        }
+        if (\Illuminate\Support\Facades\Schema::hasColumn('order_items', 'returned_quantity')) {
+            foreach ($order->items as $item) {
+                $qty = $picked->isEmpty() ? (int) $item->quantity : (int) ($picked->get($item->id)['quantity'] ?? 0);
+                $item->update(['returned_quantity' => $qty]);
+            }
+        }
 
         $order->update([
             'status' => 'return_in_transit',
@@ -137,7 +169,32 @@ class DeliveryOrderController extends Controller
             return response()->json(['message' => 'Start the return trip before marking it returned.'], 409);
         }
 
-        $data = $request->validate(['delivery_note' => ['nullable', 'string', 'max:3000']]);
+        $data = $request->validate([
+            'delivery_note' => ['nullable', 'string', 'max:3000'],
+            'returned_items' => ['nullable', 'array'],
+            'returned_items.*.id' => ['required', 'integer'],
+            'returned_items.*.quantity' => ['required', 'integer', 'min:0'],
+        ]);
+
+        // Which pieces actually came back. Omitted list = the whole order came back.
+        $order->loadMissing('items');
+        $returned = collect($data['returned_items'] ?? [])->keyBy('id');
+        // No list sent now: keep what the driver already chose at the door, otherwise the whole order.
+        $alreadyChosen = $order->items->contains(fn ($i) => (int) $i->returned_quantity > 0);
+        $keepDoorChoice = $returned->isEmpty() && $alreadyChosen;
+        foreach ($order->items as $item) {
+            $qty = $keepDoorChoice ? (int) $item->returned_quantity : ($returned->isEmpty() ? (int) $item->quantity : (int) ($returned->get($item->id)['quantity'] ?? 0));
+            if ($qty > (int) $item->quantity) {
+                return response()->json(['message' => 'الكمية المرتجعة أكبر من الكمية المطلوبة.'], 422);
+            }
+        }
+        foreach ($order->items as $item) {
+            $qty = $keepDoorChoice ? (int) $item->returned_quantity : ($returned->isEmpty() ? (int) $item->quantity : (int) ($returned->get($item->id)['quantity'] ?? 0));
+            if (\Illuminate\Support\Facades\Schema::hasColumn('order_items', 'returned_quantity')) {
+                $item->update(['returned_quantity' => $qty]);
+            }
+        }
+
         $order->update([
             'status' => 'returned',
             'delivery_note' => $data['delivery_note'] ?? $order->delivery_note,
@@ -154,7 +211,7 @@ class DeliveryOrderController extends Controller
         if ($order->user) {
             $rewards->syncForUser($order->user);
         }
-        $commissions->reverseForReturnedOrder($order, 'Order returned to store');
+        $commissions->applyReturnOutcome($order, 'Order returned to store');
 
         return $this->freshOrder($order);
     }

@@ -2,6 +2,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../lib/api";
 import { hasAnyPermission, hasPermission } from "../lib/permissions";
 import OrderStatus from "./ui/OrderStatus";
+import WorkspaceModuleCard from "./ui/WorkspaceModuleCard";
+
+const ICON_KEY = { products: "catalog", "site-content": "sitecontent" };
 
 function Stat({ label, value, action, href }) {
   const body = (
@@ -40,6 +43,7 @@ export default function AdminDashboardPage({ locale = "ar" }) {
   const [sessionError, setSessionError] = useState("");
   const [analyticsError, setAnalyticsError] = useState("");
   const [supportSummary, setSupportSummary] = useState(null);
+  const [stockAlerts, setStockAlerts] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -109,6 +113,18 @@ export default function AdminDashboardPage({ locale = "ar" }) {
     };
   }, [user?.id, canViewSupport]);
 
+  const canSeeStockAlerts = hasPermission(user, "products.stock_alerts");
+  useEffect(() => {
+    if (!user || !canSeeStockAlerts) { setStockAlerts(null); return undefined; }
+    let cancelled = false;
+    const load = () => apiFetch("/api/admin/products/out-of-stock")
+      .then((next) => { if (!cancelled) setStockAlerts(next); })
+      .catch(() => { if (!cancelled) setStockAlerts(null); });
+    load();
+    const timer = window.setInterval(load, 20000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [user?.id, canSeeStockAlerts]);
+
   const workspaces = useMemo(() => {
     if (!user) return [];
 
@@ -128,6 +144,7 @@ export default function AdminDashboardPage({ locale = "ar" }) {
         title: isAr ? "المنتجات والمخزون" : "Products & inventory",
         description: isAr ? "إدارة المنتجات والمخزون ضمن الصلاحيات المحددة." : "Manage products and inventory within your granted permissions.",
         href: "/admin/products",
+        badge: Number(stockAlerts?.count || 0),
       },
       {
         key: "delivery",
@@ -152,6 +169,14 @@ export default function AdminDashboardPage({ locale = "ar" }) {
         title: isAr ? "الحسابات والصلاحيات" : "Accounts & permissions",
         description: isAr ? "إدارة الحسابات الأدنى فقط ضمن حدود التفويض." : "Manage lower-level accounts only within delegated limits.",
         href: "/admin/team",
+      },
+      {
+        key: "site-content",
+        visible: hasPermission(user, "site_content.edit"),
+        eyebrow: "SITE",
+        title: isAr ? "محتوى الموقع" : "Site content",
+        description: isAr ? "تعديل قسم الموسم والترند بالصفحة الرئيسية: العناوين والنصوص والصورة والروابط." : "Edit the homepage season/trend section: titles, text, image and links.",
+        href: "/admin/site-content",
       },
       {
         key: "decoration",
@@ -181,13 +206,17 @@ export default function AdminDashboardPage({ locale = "ar" }) {
     ];
 
     return modules.filter((module) => module.visible);
-  }, [user, isAr, canViewAnalytics, supportSummary?.unread]);
+  }, [user, isAr, canViewAnalytics, supportSummary?.unread, stockAlerts?.count]);
 
   return (
     <main className="min-h-[75vh] bg-milk px-5 py-12" dir={isAr ? "rtl" : "ltr"}>
       <div className="mx-auto max-w-7xl">
-        <div className="flex flex-wrap items-start justify-between gap-5">
-          <h1 className="text-3xl font-black tracking-tight text-espresso sm:text-4xl">{isAr ? "لوحة التحكم" : "Dashboard"}</h1>
+        <div className="flex flex-wrap items-start justify-between gap-5 rounded-[32px] border border-espresso/10 bg-oat/15 px-5 py-7 sm:px-8 sm:py-9">
+          <div>
+            <p className="omb-eyebrow-label text-aubergine/60">OH MY BABY — ADMIN</p>
+            <h1 className="mt-2 text-3xl font-black tracking-tight text-espresso sm:text-4xl">{isAr ? "لوحة التحكم" : "Dashboard"}</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-espresso/55">{isAr ? "الأقسام اللي بتظهر لك هي اللي أعطاك الأونر صلاحيتها فقط." : "You only see the modules the owner granted you."}</p>
+          </div>
           {user && <div className="border border-espresso/10 bg-oat/20 px-4 py-3 text-sm"><strong>{user.name}</strong><p className="mt-1 text-xs text-espresso/50">{user.email || user.phone || "—"}</p></div>}
         </div>
 
@@ -201,10 +230,36 @@ export default function AdminDashboardPage({ locale = "ar" }) {
           <>
             <section className="mt-6">
               {workspaces.length > 0 ? (
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                  {workspaces.map((module) => <WorkspaceCard key={module.key} {...module} />)}
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {workspaces.map((module) => (
+                    <WorkspaceModuleCard key={module.key} badge={module.badge || 0} locale={locale} module={{ key: ICON_KEY[module.key] || module.key, ar: module.title, en: module.title, href: module.href }} />
+                  ))}
                 </div>
               ) : null}
+
+              {canSeeStockAlerts && stockAlerts && (
+                <div className={`mt-6 rounded-2xl border p-5 ${stockAlerts.count > 0 ? "border-red-300 bg-red-50/60" : "border-espresso/10 bg-oat/15"}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h2 className="text-lg font-black text-espresso">{isAr ? "منتجات نفدت من المخزون" : "Out-of-stock products"} ({stockAlerts.count})</h2>
+                    {stockAlerts.count > 0 && <a href="/admin/products" className="text-xs font-black text-aubergine underline">{isAr ? "إدارة المنتجات" : "Manage products"}</a>}
+                  </div>
+                  {stockAlerts.count === 0 ? (
+                    <p className="mt-2 text-sm text-espresso/55">{isAr ? "كل المنتجات متوفرة حالياً." : "Everything is in stock."}</p>
+                  ) : (
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {stockAlerts.products.map((p) => (
+                        <div key={p.id} className="flex items-center gap-3 rounded-xl border border-espresso/10 bg-milk p-3">
+                          {p.image && <img src={p.image} alt="" className="h-14 w-12 rounded-md object-cover" />}
+                          <div className="min-w-0">
+                            <strong className="block truncate text-sm">{p.name}</strong>
+                            <p className="mt-0.5 truncate text-xs text-espresso/55">{isAr ? "صاحب المنتج: " : "Owner: "}{p.owner || "—"}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </section>
 
             {canViewAnalytics && analyticsError && <p className="mt-6 border border-red-300 bg-red-50 p-3 text-red-700">{analyticsError}</p>}

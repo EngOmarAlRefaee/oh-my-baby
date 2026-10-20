@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { unifyProductImage } from "../lib/productImage";
+import { translateArToEn } from "../lib/translate";
 import {
   categoryTree,
   colorPresets,
@@ -52,6 +54,29 @@ function fileToDataUrl(file) {
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+
+// Every uploaded product image is cut out from its own background and placed on
+// the unified system background (see lib/productImage.js). The decor category is
+// intentionally excluded. `onNotice` receives a message when the background could
+// not be removed safely (busy background / same colour as the product).
+const BG_PREF_KEY = "omb-unify-image-bg";
+function readBgPref() {
+  try { return window.localStorage.getItem(BG_PREF_KEY) !== "off"; } catch { return true; }
+}
+
+async function processProductImage(file, category, onNotice, unify = true) {
+  const original = await fileToDataUrl(file);
+  // Admin can switch the unified background off (on by default): the photo is then kept untouched.
+  if (unify === false || !readBgPref()) return original;
+  if (category === "decor" || typeof document === "undefined") return original;
+  try {
+    const { dataUrl, removed } = await unifyProductImage(original);
+    if (!removed && onNotice) onNotice();
+    return dataUrl;
+  } catch {
+    return original;
+  }
 }
 
 function emptyProduct() {
@@ -150,8 +175,15 @@ function reconcileInventory(product, overrides = {}) {
 
 export default function AdminPage({ locale = "ar" }) {
   const isAr = locale === "ar";
-  const [products, setProducts] = useState(() => getProducts());
+  // The admin list comes from the server and is already limited to the products this
+  // account owns (or all of them when the Owner granted products.manage_all).
+  // The local storefront cache is never used as the admin list.
+  const [products, setProducts] = useState([]);
   const [form, setForm] = useState(null);
+  const [listQuery, setListQuery] = useState("");
+  const [unifyBg, setUnifyBg] = useState(() => readBgPref());
+  // Per-color switch: background unification is ON for every color by default; the admin can turn it off for one color while uploading its images.
+  const [noUnifyColors, setNoUnifyColors] = useState({});
   const [editing, setEditing] = useState(null);
   const [stepIndex, setStepIndex] = useState(0);
   const [editParts, setEditParts] = useState([]);
@@ -166,6 +198,17 @@ export default function AdminPage({ locale = "ar" }) {
     apiFetch("/auth/session")
       .then((next) => { if (!cancelled) setSession(next); })
       .catch(() => { if (!cancelled) setSession(null); });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch("/api/admin/products")
+      .then((payload) => {
+        if (cancelled) return;
+        setProducts((Array.isArray(payload?.products) ? payload.products : []).map(normalizeProduct));
+      })
+      .catch(() => { if (!cancelled) setMessage(isAr ? "تعذر تحميل منتجاتك من قاعدة البيانات." : "Could not load your products from the database."); });
     return () => { cancelled = true; };
   }, []);
 
@@ -279,7 +322,7 @@ export default function AdminPage({ locale = "ar" }) {
     }
 
     const next = products.filter((product) => String(product.id) !== String(productId));
-    const result = saveProducts(next);
+    const result = saveProducts(getProducts().filter((product) => String(product.id) !== String(productId)));
     if (!result?.ok) {
       setMessage(isAr ? "تم حذف المنتج من النظام لكن تعذر تحديث النسخة المحلية." : "The product was deleted, but local cache could not be updated.");
       return;
@@ -445,13 +488,14 @@ export default function AdminPage({ locale = "ar" }) {
 
   async function setMainImage(file) {
     if (!file) return;
-    const image = await fileToDataUrl(file);
+    const image = await processProductImage(file, form.category, () => setMessage(isAr ? "تعذّر فصل خلفية إحدى الصور تلقائياً (خلفية معقدة أو بنفس لون المنتج)، تم وضعها على الخلفية الموحدة كما هي. الأفضل ترفعي صورة بخلفية سادة." : "The background of one image could not be removed automatically (busy or same colour as the product). It was placed on the unified background as is. A plain-background photo works best."));
     update({ image });
   }
 
   async function setColorImage(colorId, file) {
     if (!file) return;
-    const image = await fileToDataUrl(file);
+    setMessage("");
+    const image = await processProductImage(file, form.category, () => setMessage(isAr ? "تعذّر فصل خلفية إحدى الصور تلقائياً (خلفية معقدة أو بنفس لون المنتج)، تم وضعها على الخلفية الموحدة كما هي. الأفضل ترفعي صورة بخلفية سادة." : "The background of one image could not be removed automatically (busy or same colour as the product). It was placed on the unified background as is. A plain-background photo works best."), !noUnifyColors[colorId]);
     setForm((current) => ({
       ...current,
       colors: current.colors.map((color) =>
@@ -461,13 +505,12 @@ export default function AdminPage({ locale = "ar" }) {
       ),
       image: current.image || image,
     }));
-    setMessage("");
   }
 
   async function addColorGalleryImages(colorId, files) {
     const list = Array.from(files || []);
     if (!list.length) return;
-    const images = await Promise.all(list.map(fileToDataUrl));
+    const images = await Promise.all(list.map((item) => processProductImage(item, form.category, () => setMessage(isAr ? "تعذّر فصل خلفية إحدى الصور تلقائياً (خلفية معقدة أو بنفس لون المنتج)، تم وضعها على الخلفية الموحدة كما هي. الأفضل ترفعي صورة بخلفية سادة." : "The background of one image could not be removed automatically (busy or same colour as the product). It was placed on the unified background as is. A plain-background photo works best."), !noUnifyColors[colorId])));
     setForm((current) => ({
       ...current,
       colors: current.colors.map((color) =>
@@ -535,8 +578,8 @@ export default function AdminPage({ locale = "ar" }) {
       return isAr ? "اختاري قياساً واحداً على الأقل أو أضيفي مقاساً مخصصاً." : "Choose at least one size or add a custom size.";
     if (step === "price" && !(Number(form.price) > 0))
       return isAr ? "أدخلي سعراً صحيحاً للمنتج." : "Enter a valid product price.";
-    if (step === "description" && (!form.name.trim() || !form.nameEn.trim()))
-      return isAr ? "أدخلي اسم المنتج بالعربي والإنكليزي." : "Enter the product name in Arabic and English.";
+    if (step === "description" && !form.name.trim())
+      return isAr ? "أدخلي اسم المنتج بالعربي." : "Enter the product name in Arabic.";
     if (step === "placements" && form.sections.includes("offers")) {
       const offer = Number(form.offerPrice || 0);
       const regular = Number(form.price || 0);
@@ -564,8 +607,30 @@ export default function AdminPage({ locale = "ar" }) {
   }
 
   async function save() {
+    setMessage(isAr ? "جاري الحفظ..." : "Saving...");
+    // English name/description are no longer typed by the admin. A previously
+    // saved English text is kept only while the Arabic text it was written for
+    // is unchanged; otherwise it is cleared so the storefront falls back cleanly.
+    const previous = editing ? products.find((product) => String(product.id) === String(form.id)) : null;
+    const nameUnchanged = previous && String(previous.name || "").trim() === String(form.name || "").trim();
+    const descUnchanged = previous && String(previous.descriptionAr || "").trim() === String(form.descriptionAr || "").trim();
+    // normalizeProduct() fills English with the Arabic text when no English exists,
+    // so "English equals Arabic" means "not translated yet".
+    let nameEn = nameUnchanged && previous.nameEn && previous.nameEn !== previous.name ? previous.nameEn : "";
+    let descriptionEn = descUnchanged && previous.descriptionEn && previous.descriptionEn !== previous.descriptionAr ? previous.descriptionEn : "";
+    const needName = !nameEn && form.name.trim();
+    const needDesc = !descriptionEn && String(form.descriptionAr || "").trim();
+    if (needName || needDesc) {
+      const translated = await translateArToEn([needName ? form.name : "", needDesc ? form.descriptionAr : ""]);
+      if (translated) {
+        if (needName && translated[0]) nameEn = translated[0];
+        if (needDesc && translated[1]) descriptionEn = translated[1];
+      }
+    }
     const normalized = normalizeProduct({
       ...form,
+      nameEn,
+      descriptionEn,
       slug:
         form.slug ||
         `${form.category || "product"}-${String(form.id).replace(/\D/g, "") || Date.now()}`,
@@ -610,7 +675,11 @@ export default function AdminPage({ locale = "ar" }) {
     const next = editing
       ? products.map((product) => (String(product.id) === String(normalized.id) ? normalized : product))
       : [normalized, ...products];
-    const result = saveProducts(next);
+    const cached = getProducts();
+    const inCache = cached.some((product) => String(product.id) === String(normalized.id));
+    const result = saveProducts(inCache
+      ? cached.map((product) => (String(product.id) === String(normalized.id) ? normalized : product))
+      : [normalized, ...cached]);
     if (!result?.ok) {
       setMessage(
         isAr
@@ -662,8 +731,18 @@ export default function AdminPage({ locale = "ar" }) {
             </div>
           </div>
 
-          <div className="mt-9 grid gap-4">
-            {products.map((product) => (
+          <input
+            value={listQuery}
+            onChange={(e) => setListQuery(e.target.value)}
+            placeholder={isAr ? "ابحث برقم المنتج (OMB-10001) أو الاسم" : "Search by product no. (OMB-10001) or name"}
+            className="mt-9 w-full border border-espresso/12 bg-milk p-3 text-sm"
+          />
+          <div className="mt-4 grid gap-4">
+            {products.filter((product) => {
+              const q = listQuery.trim().toLowerCase();
+              if (!q) return true;
+              return [product.code, String(product.code || "").replace(/\D/g, ""), product.name, product.nameEn].filter(Boolean).join(" ").toLowerCase().includes(q);
+            }).map((product) => (
               <article
                 key={product.id}
                 className="grid gap-5 border border-espresso/10 bg-oat/20 p-4 sm:grid-cols-[110px_1fr_auto] sm:items-center"
@@ -680,6 +759,7 @@ export default function AdminPage({ locale = "ar" }) {
                   <h2 className="mt-1 text-lg font-black text-espresso">
                     {isAr ? product.name : product.nameEn || product.name}
                   </h2>
+                  {product.code && <p className="mt-1 text-xs font-black tracking-widest text-espresso/50" dir="ltr">{product.code}</p>}
                   <p className="mt-2 text-sm text-espresso/55">
                     ${product.offerPrice ?? product.price} · {totalStock(product)} {isAr ? "قطعة بالمخزون" : "units in stock"}
                   </p>
@@ -905,6 +985,19 @@ export default function AdminPage({ locale = "ar" }) {
                   : "Every added color needs a real product image in that color. Uploaded images are the store source of truth."}
               </p>
 
+              <label className="mt-5 flex items-start gap-3 border border-espresso/10 bg-oat/20 p-4 text-sm">
+                <input
+                  type="checkbox"
+                  checked={unifyBg}
+                  onChange={(e) => { setUnifyBg(e.target.checked); try { window.localStorage.setItem(BG_PREF_KEY, e.target.checked ? "on" : "off"); } catch {} }}
+                  className="mt-1 h-4 w-4"
+                />
+                <span>
+                  <strong className="block">{isAr ? "توحيد خلفية الصور (مفعّل تلقائياً)" : "Unify image background (on by default)"}</strong>
+                  <span className="text-espresso/60">{isAr ? "بيفصل المنتج عن خلفيته وبيحطه على خلفية الموقع الموحدة بجودة عالية. أطفئه إذا بدك الصورة تنرفع متل ما هي. بينطبق على الصور اللي بترفعها بعد التغيير." : "Cuts the product out and places it on the site's unified background in high quality. Turn off to upload photos as they are. Applies to images you upload afterwards."}</span>
+                </span>
+              </label>
+
               <div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 {colorPresets.map((preset) => {
                   const selected = form.colors.some((color) => color.id === preset.id);
@@ -951,6 +1044,10 @@ export default function AdminPage({ locale = "ar" }) {
                           {isAr ? "إزالة اللون" : "Remove color"}
                         </button>
                       </div>
+                      <label className="mt-4 flex items-center gap-2 text-xs font-black text-espresso/70">
+                        <input type="checkbox" checked={!noUnifyColors[color.id]} onChange={(e) => setNoUnifyColors((current) => ({ ...current, [color.id]: !e.target.checked }))} className="h-4 w-4" />
+                        {isAr ? "توحيد خلفية صور هذا اللون (مفعّل تلقائياً — ألغيه قبل رفع الصورة إذا بدك الصورة كما هي)" : "Unify background for this color's images (on by default — untick before uploading to keep the photo as is)"}
+                      </label>
                       <label className="mt-4 block text-xs font-black text-espresso/60">
                         {isAr ? "الصورة الرئيسية لهذا اللون — مطلوبة" : "Main image for this color — required"}
                         <input type="file" accept="image/*" onChange={(e) => setColorImage(color.id, e.target.files?.[0])} className="mt-2 block w-full text-xs" />
@@ -1107,22 +1204,14 @@ export default function AdminPage({ locale = "ar" }) {
           {currentStep === "description" && (
             <div>
               <h2 className="text-2xl font-black">{stepTitles.description}</h2>
-              <div className="mt-7 grid gap-4 md:grid-cols-2">
+              <div className="mt-7 grid gap-4">
                 <label className="text-sm font-black">
                   {isAr ? "اسم المنتج بالعربي" : "Arabic product name"}
                   <input value={form.name} onChange={(e) => update({ name: e.target.value })} className="mt-2 h-12 w-full border border-espresso/12 bg-milk px-4 outline-none" />
                 </label>
                 <label className="text-sm font-black">
-                  {isAr ? "اسم المنتج بالإنكليزي" : "English product name"}
-                  <input value={form.nameEn} onChange={(e) => update({ nameEn: e.target.value })} className="mt-2 h-12 w-full border border-espresso/12 bg-milk px-4 outline-none" />
-                </label>
-                <label className="text-sm font-black">
                   {isAr ? "وصف مختصر بالعربي" : "Arabic description"}
                   <textarea rows="6" value={form.descriptionAr} onChange={(e) => update({ descriptionAr: e.target.value })} className="mt-2 w-full border border-espresso/12 bg-milk p-4 outline-none" />
-                </label>
-                <label className="text-sm font-black">
-                  {isAr ? "وصف مختصر بالإنكليزي" : "English description"}
-                  <textarea rows="6" value={form.descriptionEn} onChange={(e) => update({ descriptionEn: e.target.value })} className="mt-2 w-full border border-espresso/12 bg-milk p-4 outline-none" />
                 </label>
               </div>
             </div>
@@ -1188,12 +1277,12 @@ export default function AdminPage({ locale = "ar" }) {
                 <div>
                   <p className="omb-eyebrow-label text-aubergine/60">{isAr ? world?.ar : world?.en}</p>
                   <p className="mt-2 text-sm font-black text-espresso/55">{selectedCategoryLabel(form)}</p>
-                  <h3 className="mt-2 text-3xl font-black text-espresso">{isAr ? form.name || "—" : form.nameEn || "—"}</h3>
+                  <h3 className="mt-2 text-3xl font-black text-espresso">{form.name || "—"}</h3>
                   <div className="mt-3 flex items-baseline gap-3">
                     <span className="text-2xl font-black text-aubergine">${form.offerPrice || form.price || 0}</span>
                     {form.offerPrice && Number(form.offerPrice) < Number(form.price) && <span className="text-sm text-espresso/40 line-through">${form.price}</span>}
                   </div>
-                  <p className="mt-5 max-w-2xl text-sm leading-7 text-espresso/65">{isAr ? form.descriptionAr : form.descriptionEn}</p>
+                  <p className="mt-5 max-w-2xl text-sm leading-7 text-espresso/65">{form.descriptionAr}</p>
                   <div className="mt-5 flex flex-wrap gap-2">
                     {form.colors.map((color) => <span key={color.id} className="border border-espresso/12 px-3 py-2 text-xs font-black">{isAr ? color.nameAr : color.nameEn}</span>)}
                     {form.sizes.map((size) => <span key={size} className="border border-espresso/12 px-3 py-2 text-xs font-black">{size}</span>)}

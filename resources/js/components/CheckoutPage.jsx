@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import OrderStatus from "./ui/OrderStatus";
 import OrderTimeline from "./ui/OrderTimeline";
-import { clearCart, getCartDetailed } from "../data/productStore";
+import { clearCart, getCartDetailed, syncCatalogFromServer } from "../data/productStore";
 import { apiFetch } from "../lib/api";
 import useExchangeRate from "../hooks/useExchangeRate";
 
@@ -135,13 +135,18 @@ export default function CheckoutPage({ locale = "ar" }) {
       });
 
       clearCart();
+      // Refresh stock from the database so the product shows the new quantity
+      // (or "Out of stock") instead of disappearing or staying stale.
+      syncCatalogFromServer();
       setItems([]);
       setSubmitted(data.order);
     } catch (err) {
       setError(
-        err.data?.errors
-          ? Object.values(err.data.errors).flat()[0]
-          : err.message
+        err.status === 429
+          ? (isAr ? "محاولات كتير بوقت قصير. استنى دقيقة وجرّب مرة تانية (طلبك ما انرسل)." : "Too many attempts in a short time. Wait a minute and try again (your order was not sent).")
+          : err.data?.errors
+            ? Object.values(err.data.errors).flat()[0]
+            : err.message
       );
     } finally {
       setBusy(false);

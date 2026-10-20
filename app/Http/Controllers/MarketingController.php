@@ -168,7 +168,7 @@ class MarketingController extends Controller
                 'id' => $row->id,
                 'name' => $row->name,
                 'value' => mb_strtolower(trim((string) $row->email)),
-                'marketing_opt_in' => (bool) $row->marketing_opt_in,
+                'marketing_opt_in' => true,
             ])
             ->unique('value')
             ->values();
@@ -179,10 +179,20 @@ class MarketingController extends Controller
                 'id' => $row->id,
                 'name' => $row->name,
                 'value' => trim((string) $row->phone),
-                'marketing_opt_in' => (bool) $row->marketing_opt_in,
+                'marketing_opt_in' => true,
             ])
             ->unique('value')
             ->values();
+
+        $seen = $phones->pluck('value')->map(fn ($v) => \App\Models\MarketingContact::normalize($v) ?? $v)->all();
+        if (Schema::hasTable('marketing_contacts')) {
+            foreach (DB::table('marketing_contacts')->orderByDesc('id')->limit(5000)->get(['id', 'name', 'phone']) as $row) {
+                if (in_array($row->phone, $seen, true)) continue;
+                $seen[] = $row->phone;
+                $phones->push(['id' => null, 'name' => $row->name, 'value' => $row->phone, 'marketing_opt_in' => true]);
+            }
+        }
+        $phones = $phones->values();
 
         return response()->json([
             'emails' => $emails,
@@ -209,7 +219,6 @@ class MarketingController extends Controller
 
         $recipients = User::query()
             ->where('role', 'customer')
-            ->where('marketing_opt_in', true)
             ->whereNotNull('email')
             ->where('email', '!=', '')
             ->pluck('email')
@@ -257,11 +266,11 @@ class MarketingController extends Controller
 
         $recipients = User::query()
             ->where('role', 'customer')
-            ->where('marketing_opt_in', true)
             ->whereNotNull('phone')
             ->where('phone', '!=', '')
             ->pluck('phone')
             ->map(fn ($phone) => preg_replace('/[^0-9]/', '', (string) $phone))
+            ->merge(Schema::hasTable('marketing_contacts') ? DB::table('marketing_contacts')->pluck('phone')->map(fn ($phone) => preg_replace('/[^0-9]/', '', (string) $phone)) : [])
             ->filter(fn ($phone) => strlen($phone) >= 8)
             ->unique()
             ->values();

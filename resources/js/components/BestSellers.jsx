@@ -63,7 +63,7 @@ export default function BestSellers({ locale = "ar" }) {
   }, []);
 
   const products = useMemo(() => {
-    const all = getProducts().filter((product) => product.status !== "inactive");
+    const all = getProducts().filter((product) => product.status !== "inactive" && !isProductOutOfStock(product));
     const byId = new Map(all.map((product) => [String(product.id), product]));
     const pinned = all
       .filter((product) => product.bestSellerPinned || product.sections?.includes("best-sellers"))

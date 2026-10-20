@@ -27,7 +27,8 @@ export default function OrderTimeline({ status, locale = "ar", compact = false, 
   }
 
   const isReturn = ["return_requested", "return_approved", "return_assigned", "return_in_transit", "returned"].includes(status);
-  const current = isReturn ? (wasDelivered ? 3 : 2) : (stage[status] ?? 0);
+  // A delivered order (or a return of an order that was delivered) has finished every step: show ✓ on the last one too.
+  const current = isReturn ? (wasDelivered ? 4 : 2) : (status === "delivered" ? 4 : (stage[status] ?? 0));
   return (
     <div className={`omb-order-timeline ${compact ? "is-compact" : ""}`}>
       {steps.map((step, index) => {

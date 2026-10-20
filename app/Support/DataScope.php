@@ -73,11 +73,11 @@ class DataScope
     public static function sectionOptions(): array
     {
         $labels = [
-            'newborn' => ['ar' => 'حديثي الولادة', 'en' => 'Newborn'],
-            'girls' => ['ar' => 'بنات', 'en' => 'Girls'],
-            'boys' => ['ar' => 'أولاد', 'en' => 'Boys'],
+            'newborn' => ['ar' => 'الرضع', 'en' => 'Infants'],
+            'girls' => ['ar' => 'بناتي', 'en' => 'Girls'],
+            'boys' => ['ar' => 'صبياني', 'en' => 'Boys'],
             'shoes' => ['ar' => 'أحذية', 'en' => 'Shoes'],
-            'accessories' => ['ar' => 'إكسسوارات', 'en' => 'Accessories'],
+            'accessories' => ['ar' => 'إكسسوارات ومستلزمات', 'en' => 'Accessories & Supplies'],
             'decor' => ['ar' => 'استقبال المولود والتزيين', 'en' => 'Newborn Welcome & Decor'],
             'mobility' => ['ar' => 'عربايات ومقاعد', 'en' => 'Strollers & Seats'],
             'gifts' => ['ar' => 'هدايا', 'en' => 'Gifts'],

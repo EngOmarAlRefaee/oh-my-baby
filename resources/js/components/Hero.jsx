@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 const offers = [
   { src: "/images/home/hero-selected/hero-01.webp", titleAr: "عرض على اختيارات الأولاد", titleEn: "Offers on boys' picks", bodyAr: "قطع يومية مختارة بسعر خاص لفترة محدودة.", bodyEn: "Selected everyday pieces at a special price for a limited time.", ctaAr: "اطلب الآن", ctaEn: "Shop offer", href: "/category/boys?placement=offers" },
   { src: "/images/home/hero-selected/hero-04.webp", titleAr: "عرض على البنات", titleEn: "Girls' edit on offer", bodyAr: "فستان وقطع لطيفة ضمن مجموعة العروض.", bodyEn: "Sweet pieces and dresses from our current offers.", ctaAr: "اطلب الآن", ctaEn: "Shop offer", href: "/category/girls?placement=offers" },
-  { src: "/images/home/hero-selected/hero-02.webp", titleAr: "عرض حديثي الولادة", titleEn: "Newborn offer", bodyAr: "اختيارات ناعمة لأول أيامهم.", bodyEn: "Soft essentials for their first days.", ctaAr: "اطلب الآن", ctaEn: "Shop offer", href: "/category/newborn?placement=offers" },
+  { src: "/images/home/hero-selected/hero-02.webp", titleAr: "عرض الرضع", titleEn: "Newborn offer", bodyAr: "اختيارات ناعمة لأول أيامهم.", bodyEn: "Soft essentials for their first days.", ctaAr: "اطلب الآن", ctaEn: "Shop offer", href: "/category/newborn?placement=offers" },
   { src: "/images/home/hero-selected/hero-03.webp", titleAr: "عرض على الأحذية", titleEn: "Shoe offer", bodyAr: "اختيارات عملية للخطوات الصغيرة.", bodyEn: "Practical picks for little steps.", ctaAr: "اطلب الآن", ctaEn: "Shop offer", href: "/category/shoes?placement=offers" },
 ];
 

@@ -11,8 +11,18 @@ class CatalogProduct extends Model
         'external_id', 'slug', 'world', 'category', 'subcategory', 'audience',
         'name_ar', 'name_en', 'description_ar', 'description_en', 'price_usd',
         'offer_price_usd', 'image', 'colors', 'sizes', 'inventory', 'sections',
-        'status', 'low_stock_threshold', 'created_by', 'updated_by',
+        'status', 'low_stock_threshold', 'created_by', 'updated_by', 'product_code',
     ];
+
+    protected static function booted(): void
+    {
+        // Every product gets a permanent 5-digit number (10001, 10002, ...) shown as OMB-10001.
+        static::creating(function (CatalogProduct $product) {
+            if (empty($product->product_code) && \Illuminate\Support\Facades\Schema::hasColumn('catalog_products', 'product_code')) {
+                $product->product_code = max(10000, (int) static::query()->max('product_code')) + 1;
+            }
+        });
+    }
 
     public function createdBy(): BelongsTo { return $this->belongsTo(User::class, 'created_by'); }
     public function updatedBy(): BelongsTo { return $this->belongsTo(User::class, 'updated_by'); }
@@ -32,11 +42,11 @@ class CatalogProduct extends Model
     public function toStoreArray(): array
     {
         $labels = [
-            'newborn' => ['ar' => 'حديثي الولادة', 'en' => 'Newborn'],
-            'girls' => ['ar' => 'بنات', 'en' => 'Girls'],
-            'boys' => ['ar' => 'أولاد', 'en' => 'Boys'],
+            'newborn' => ['ar' => 'الرضع', 'en' => 'Infants'],
+            'girls' => ['ar' => 'بناتي', 'en' => 'Girls'],
+            'boys' => ['ar' => 'صبياني', 'en' => 'Boys'],
             'shoes' => ['ar' => 'أحذية', 'en' => 'Shoes'],
-            'accessories' => ['ar' => 'إكسسوارات', 'en' => 'Accessories'],
+            'accessories' => ['ar' => 'إكسسوارات ومستلزمات', 'en' => 'Accessories & Supplies'],
             'decor' => ['ar' => 'استقبال المولود والتزيين', 'en' => 'Newborn Welcome & Decor'],
             'mobility' => ['ar' => 'عربايات ومقاعد', 'en' => 'Strollers & Seats'],
             'gifts' => ['ar' => 'هدايا', 'en' => 'Gifts'],
@@ -47,6 +57,7 @@ class CatalogProduct extends Model
         return [
             'id' => ctype_digit((string) $this->external_id) ? (int) $this->external_id : $this->external_id,
             'slug' => $this->slug,
+            'code' => $this->product_code ? 'OMB-'.$this->product_code : null,
             'name' => $this->name_ar,
             'nameEn' => $this->name_en ?: $this->name_ar,
             'world' => $this->world,

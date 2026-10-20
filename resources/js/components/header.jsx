@@ -719,7 +719,7 @@ export default function Header({
                 }
                 className="omb-nav-link flex h-full items-center text-[15px] font-bold"
               >
-                {isAr ? "حديثي الولادة" : "Newborn"}
+                {isAr ? "الرضع" : "Infants"}
               </a>
               <a
                 href="/#best-sellers"
@@ -889,7 +889,7 @@ export default function Header({
               )}
               {menuLink(
                 "/#newborn-essentials",
-                isAr ? "حديثي الولادة" : "Newborn",
+                isAr ? "الرضع" : "Infants",
               )}
               {menuLink(
                 "/#best-sellers",

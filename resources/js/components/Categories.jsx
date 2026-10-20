@@ -5,8 +5,8 @@ import Reveal from "./ui/Reveal";
 const categories = [
   {
     id: "newborn",
-    nameAr: "حديثي الولادة",
-    nameEn: "Newborn",
+    nameAr: "الرضع",
+    nameEn: "Infants",
     subtitleAr: "لأول حضن وأهدى نومة",
     subtitleEn: "For first cuddles and the softest naps",
     tag: "NEWBORN",
@@ -16,7 +16,7 @@ const categories = [
   },
   {
     id: "girls",
-    nameAr: "بنات",
+    nameAr: "بناتي",
     nameEn: "Girls",
     subtitleAr: "إطلالات ناعمة… بطريقتها",
     subtitleEn: "Soft looks, in her own way",
@@ -27,7 +27,7 @@ const categories = [
   },
   {
     id: "boys",
-    nameAr: "أولاد",
+    nameAr: "صبياني",
     nameEn: "Boys",
     subtitleAr: "راحة للحركة من الصبح للمسا",
     subtitleEn: "Comfort made for all-day movement",
@@ -49,8 +49,8 @@ const categories = [
   },
   {
     id: "accessories",
-    nameAr: "Details / إكسسوارات",
-    nameEn: "Details / Accessories",
+    nameAr: "إكسسوارات ومستلزمات",
+    nameEn: "Accessories & Supplies",
     subtitleAr: "تفاصيل صغيرة بتكمّل الحكاية",
     subtitleEn: "Little details that complete the story",
     tag: "DETAILS",

@@ -55,6 +55,8 @@ class PermissionCatalog
                     ['code' => 'products.create', 'ar' => 'إضافة منتجات جديدة', 'en' => 'Create products'],
                     ['code' => 'products.edit', 'ar' => 'تعديل المنتجات والصور والأسعار والقياسات والألوان والمخزون', 'en' => 'Edit products, images, prices, sizes, colors and inventory'],
                     ['code' => 'products.archive', 'ar' => 'إخفاء أو أرشفة المنتجات', 'en' => 'Hide or archive products'],
+                    ['code' => 'products.manage_all', 'ar' => 'تعديل وحذف منتجات الأدمنات الآخرين (بدونها يدير منتجاته فقط)', 'en' => "Edit and delete other admins' products (otherwise own products only)"],
+                    ['code' => 'products.stock_alerts', 'ar' => 'مشاهدة تنبيه المنتجات التي نفدت من المخزون لكل الأدمنات', 'en' => 'See out-of-stock alerts for all admins'],
                 ],
             ],
             [
@@ -86,6 +88,10 @@ class PermissionCatalog
                     ['code' => 'commissions.self.view', 'ar' => 'مشاهدة ملخص عمولاته ومستحقاته الشخصية', 'en' => 'View own commission and dues summary'],
                     ['code' => 'commissions.self.orders', 'ar' => 'مشاهدة تفاصيل الطلبات وحصته من عمولة كل طلب', 'en' => 'View own order commission details and share per order'],
                     ['code' => 'commissions.self.claim', 'ar' => 'تأكيد أنه تم تحويل المستحق الأسبوعي', 'en' => 'Confirm weekly due transfer was sent'],
+                    ['code' => 'commissions.self.stats', 'ar' => 'مشاهدة إحصائياته الشخصية (القطع المدخلة والمباعة وعمولة الأسبوع)', 'en' => 'View own stats (pieces entered/sold, weekly commission)'],
+                    ['code' => 'commissions.team.view', 'ar' => 'مشاهدة مستحقات فريق الأدمن مجتمعة (للأدمن الرئيسي)', 'en' => 'View combined team dues (primary admin)'],
+                    ['code' => 'commissions.lock_exempt', 'ar' => 'إعفاؤه من قفل الحساب عند عدم تسديد العمولة الأسبوعية', 'en' => 'Exempt from the weekly unpaid-commission lock'],
+                    ['code' => 'commissions.team.transfer', 'ar' => 'تحويل مستحقات الفريق للأونر (شام كاش أو تأكيد تحويل خارجي)', 'en' => 'Transfer team dues to the owner (Sham Cash or external claim)'],
                 ],
             ],
             [
@@ -99,6 +105,14 @@ class PermissionCatalog
                     ['code' => 'marketing.email.send', 'ar' => 'إرسال رسالة جماعية عبر البريد الإلكتروني', 'en' => 'Send bulk email campaigns'],
                     ['code' => 'marketing.sms.send', 'ar' => 'إنشاء حملة SMS جماعية وإرسالها عبر هاتف البوابة', 'en' => 'Create bulk SMS campaigns through the phone gateway'],
                     ['code' => 'marketing.sms.gateway.manage', 'ar' => 'ربط وإدارة هاتف بوابة SMS', 'en' => 'Pair and manage the SMS gateway phone'],
+                ],
+            ],
+            [
+                'key' => 'site_content',
+                'title_ar' => 'محتوى الموقع (الموسم والترند)',
+                'title_en' => 'Site content (season & trends)',
+                'items' => [
+                    ['code' => 'site_content.edit', 'ar' => 'تعديل قسم الموسم/الترند بالصفحة الرئيسية (العناوين والنصوص والصورة والروابط)', 'en' => 'Edit the homepage seasonal/trend section (titles, text, image, links)'],
                 ],
             ],
             [
@@ -163,6 +177,8 @@ class PermissionCatalog
             'products.create' => ['products.view'],
             'products.edit' => ['products.view'],
             'products.archive' => ['products.view'],
+            'products.manage_all' => ['products.view'],
+            'products.stock_alerts' => ['products.view'],
             'orders.accept' => ['orders.view'],
             'orders.reject' => ['orders.view'],
             'orders.dispatch' => ['orders.view'],
@@ -170,6 +186,9 @@ class PermissionCatalog
             'delivery.act_as' => ['delivery.view'],
             'commissions.self.orders' => ['commissions.self.view'],
             'commissions.self.claim' => ['commissions.self.view'],
+            'commissions.self.stats' => ['commissions.self.view'],
+            'commissions.team.view' => ['commissions.self.view'],
+            'commissions.team.transfer' => ['commissions.self.view', 'commissions.team.view'],
             'marketing.manage' => ['marketing.view'],
             'marketing.contacts.view' => ['marketing.view'],
             'marketing.email.send' => ['marketing.view', 'marketing.contacts.view'],

@@ -1,4 +1,6 @@
 import React from "react";
+import { SOCIAL_LINKS, whatsappLink } from "../lib/social";
+import { BrandIcon, brandBg } from "./ServicePages";
 
 function FooterColumn({ title, children }) {
     return (
@@ -17,17 +19,33 @@ function FooterLink({ children, href }) {
     );
 }
 
+function SocialIcon({ href, label, name }) {
+    return (
+        <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={label}
+            title={label}
+            style={brandBg(name)}
+            className="grid h-10 w-10 place-items-center rounded-full shadow-sm ring-1 ring-black/5 transition duration-300 hover:-translate-y-0.5 hover:shadow-md dark:ring-white/20"
+        >
+            <BrandIcon name={name} size={20} />
+        </a>
+    );
+}
+
 export default function Footer({ locale = "ar" }) {
     const isAr = locale === "ar";
     const t = isAr
         ? {
               tagline: "أشياء صغيرة، بحب كبير — مختارة بعناية لطفلك.",
               shop: "Shop",
-              shopLinks: [["وصل حديثاً", "/#new-arrivals"], ["الأكثر طلباً", "/#best-sellers"], ["العروض", "/#product-hero"], ["العودة للمدرسة", "/#featured-collection"], ["حديثي الولادة", "/#newborn-essentials"]],
+              shopLinks: [["وصل حديثاً", "/#new-arrivals"], ["الأكثر طلباً", "/#best-sellers"], ["العروض", "/#product-hero"], ["العودة للمدرسة", "/#featured-collection"], ["الرضع", "/#newborn-essentials"]],
               care: "Customer Care",
               careLinks: [["طرق الشحن", "/services/shipping"], ["سياسة الإرجاع", "/services/returns"], ["الأسئلة الشائعة", "/services/faq"]],
               brand: "Oh My Baby",
-              brandLinks: [["قصتنا", "/about"], ["تسجيل الدخول", "/#account"], ["تابعونا", "/social/facebook"]],
+              brandLinks: [["قصتنا", "/about"], ["تسجيل الدخول", "/#account"], ["تابعونا", "/social/follow"]],
               rights: "كل الحقوق محفوظة.",
           }
         : {
@@ -37,7 +55,7 @@ export default function Footer({ locale = "ar" }) {
               care: "Customer Care",
               careLinks: [["Shipping", "/services/shipping"], ["Return policy", "/services/returns"], ["FAQ", "/services/faq"]],
               brand: "Oh My Baby",
-              brandLinks: [["Our story", "/about"], ["Sign in", "/#account"], ["Follow us", "/social/facebook"]],
+              brandLinks: [["Our story", "/about"], ["Sign in", "/#account"], ["Follow us", "/social/follow"]],
               rights: "All rights reserved.",
           };
 
@@ -55,10 +73,10 @@ export default function Footer({ locale = "ar" }) {
                 </div>
                 <div className="mt-14 flex flex-col gap-6 border-t border-espresso/8 pt-8 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-xs text-espresso/45">© {new Date().getFullYear()} Oh My Baby. {t.rights}</p>
-                    <div className="flex gap-6 text-sm font-semibold text-espresso/65">
-                        <a href="/social/instagram" className="omb-underline transition-colors duration-300 ease-premium hover:text-aubergine">Instagram</a>
-                        <a href="/social/facebook" className="omb-underline transition-colors duration-300 ease-premium hover:text-aubergine">Facebook</a>
-                        <a href="/social/pinterest" className="omb-underline transition-colors duration-300 ease-premium hover:text-aubergine">Pinterest</a>
+                    <div className="flex items-center gap-3">
+                        <SocialIcon href={SOCIAL_LINKS.facebook} label="Facebook" name="facebook" />
+                        <SocialIcon href={SOCIAL_LINKS.instagram} label="Instagram" name="instagram" />
+                        <SocialIcon href={whatsappLink()} label="WhatsApp" name="whatsapp" />
                     </div>
                 </div>
             </div>

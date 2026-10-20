@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\CatalogProduct;
 use App\Support\DataScope;
+use App\Support\PermissionCatalog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,20 +19,45 @@ class CatalogController extends Controller
             ->where('status', 'active')
             ->latest('updated_at')
             ->get()
+            ->each(fn (CatalogProduct $product) => $this->healImages($product))
             ->map(fn (CatalogProduct $product) => $product->toStoreArray())
             ->values();
 
         return response()->json(['products' => $products]);
     }
 
+    /**
+     * Self-healing: a product still holding its photos as huge base64 text is converted to
+     * real files the first time the catalog is read (no command needed). The text made the
+     * catalog so large that browsers refused to store it, so new products never showed up.
+     */
+    private function healImages(CatalogProduct $product): void
+    {
+        $image = (string) $product->image;
+        $colors = is_array($product->colors) ? $product->colors : [];
+        if (! str_contains($image.json_encode($colors), 'data:image/')) {
+            return;
+        }
+        $newImage = \App\Support\ProductImageStore::externalize($image);
+        $newColors = \App\Support\ProductImageStore::externalizeColors($colors);
+        if ($newImage !== $image || $newColors !== $colors) {
+            $product->forceFill(['image' => $newImage, 'colors' => $newColors])->saveQuietly();
+        }
+    }
+
     public function adminIndex(Request $request): JsonResponse
     {
         $query = CatalogProduct::query();
         DataScope::applyProducts($query, $request->user());
+        // Each Admin sees and manages only their own products unless the Owner granted products.manage_all.
+        if (! $this->canManageAll($request->user())) {
+            $query->where('created_by', $request->user()->id);
+        }
 
         $products = $query
             ->latest('updated_at')
             ->get()
+            ->each(fn (CatalogProduct $product) => $this->healImages($product))
             ->map(fn (CatalogProduct $product) => $product->toStoreArray())
             ->values();
 
@@ -77,6 +103,7 @@ class CatalogController extends Controller
     public function update(Request $request, string $externalId): JsonResponse
     {
         $existing = CatalogProduct::where('external_id', $externalId)->firstOrFail();
+        $this->assertOwnsOrManageAll($request->user(), $existing);
         DataScope::assertProductCategoryVisible($request->user(), (string) $existing->category);
         $raw = $request->validate(['product' => ['required', 'array']])['product'];
         DataScope::assertProductCategoryVisible($request->user(), (string) ($raw['category'] ?? $existing->category));
@@ -90,10 +117,48 @@ class CatalogController extends Controller
     public function archive(Request $request, string $externalId): JsonResponse
     {
         $product = CatalogProduct::where('external_id', $externalId)->firstOrFail();
+        $this->assertOwnsOrManageAll($request->user(), $product);
         DataScope::assertProductCategoryVisible($request->user(), (string) $product->category);
         $product->update(['status' => 'inactive', 'updated_by' => $request->user()?->id]);
 
         return response()->json(['ok' => true]);
+    }
+
+    /** Products that ran out of stock, scoped to what the viewer manages. */
+    public function stockAlerts(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $query = CatalogProduct::query()->with('createdBy:id,name')->where('status', 'active');
+        DataScope::applyProducts($query, $user);
+        if (! $this->canManageAll($user) && ! PermissionCatalog::has($user, 'products.stock_alerts')) {
+            $query->where('created_by', $user->id);
+        }
+
+        $alerts = $query->get()
+            ->filter(fn (CatalogProduct $p) => collect($p->inventory ?? [])->sum(fn ($v) => max(0, (int) $v)) <= 0)
+            ->map(fn (CatalogProduct $p) => [
+                'id' => $p->external_id,
+                'code' => $p->product_code ? 'OMB-'.$p->product_code : null,
+                'name' => $p->name_ar,
+                'image' => $p->image,
+                'category' => $p->category,
+                'owner_name' => $p->createdBy?->name,
+                'owner' => $p->createdBy?->name,
+                'updated_at' => $p->updated_at,
+            ])->values();
+
+        return response()->json(['products' => $alerts, 'count' => $alerts->count()]);
+    }
+
+    private function canManageAll($user): bool
+    {
+        return $user->role === 'owner' || PermissionCatalog::has($user, 'products.manage_all');
+    }
+
+    private function assertOwnsOrManageAll($user, CatalogProduct $product): void
+    {
+        if ($this->canManageAll($user)) return;
+        abort_unless((int) $product->created_by === (int) $user->id, 403, 'هذا المنتج يخص أدمن آخر ولا يمكنك تعديله أو حذفه.');
     }
 
     public function uploadImage(Request $request): JsonResponse
@@ -170,6 +235,10 @@ class CatalogController extends Controller
             $product->created_by = $actorId;
         }
 
+        // Store photos as files, not base64 text (keeps the catalog small and fast).
+        $colors = \App\Support\ProductImageStore::externalizeColors($colors);
+        $mainImage = \App\Support\ProductImageStore::externalize($raw['image'] ?? null);
+
         $product->fill([
             'slug' => $raw['slug'] ?? null,
             'world' => $world,
@@ -182,7 +251,7 @@ class CatalogController extends Controller
             'description_en' => $raw['descriptionEn'] ?? '',
             'price_usd' => $price,
             'offer_price_usd' => $offerPrice,
-            'image' => $raw['image'] ?? ($colors[0]['image'] ?? ''),
+            'image' => $mainImage ?: ($colors[0]['image'] ?? ''),
             'colors' => $colors,
             'sizes' => $sizes,
             'inventory' => $inventory,

@@ -10,7 +10,7 @@ class OrderItem extends Model
     protected $fillable = [
         'order_id', 'product_external_id', 'source_admin_user_id', 'catalog_product_id', 'name_ar', 'name_en', 'image',
         'color_id', 'color_name', 'size', 'inventory_key', 'quantity', 'unit_price_usd',
-        'line_total_usd', 'category', 'sections', 'is_offer',
+        'line_total_usd', 'category', 'sections', 'is_offer', 'returned_quantity', 'return_requested_quantity',
     ];
 
     protected function casts(): array

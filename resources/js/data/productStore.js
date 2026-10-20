@@ -61,6 +61,9 @@ export function normalizeProduct(product) {
     subcategory: product.subcategory || "all",
     slug: product.slug || `product-${product.id}`,
     status: product.status || "active",
+    // English falls back to the Arabic text until an English version exists.
+    nameEn: product.nameEn || product.name || "",
+    descriptionEn: product.descriptionEn || product.descriptionAr || "",
     sections: Array.isArray(product.sections) ? product.sections : [],
     // Every catalog product must belong to summer, winter, or both.
     // Legacy products that predate the season flags are treated as both so
@@ -93,12 +96,23 @@ function clearPrelaunchDemoCacheOnce() {
   }
 }
 
+let productsMemo = { raw: null, value: null };
+// If the browser refuses to store the catalog (quota), keep the fresh copy in memory so new products still show.
+let memoryCatalog = null;
+
 export function getProducts() {
   if (typeof window === "undefined") return [];
 
   clearPrelaunchDemoCacheOnce();
-  const saved = safeParse(window.localStorage.getItem(PRODUCTS_STORAGE_KEY), []);
-  return Array.isArray(saved) ? saved.map(normalizeProduct) : [];
+  // Parse + normalize only when the stored text actually changed (this function is
+  // called from many components; re-parsing megabytes each time made scrolling slow).
+  if (memoryCatalog) return memoryCatalog;
+  const raw = window.localStorage.getItem(PRODUCTS_STORAGE_KEY);
+  if (productsMemo.raw === raw && productsMemo.value) return productsMemo.value;
+  const saved = safeParse(raw, []);
+  const value = Array.isArray(saved) ? saved.map(normalizeProduct) : [];
+  productsMemo = { raw, value };
+  return value;
 }
 
 export function saveProducts(products) {
@@ -109,6 +123,7 @@ export function saveProducts(products) {
       JSON.stringify(products.map(normalizeProduct)),
     );
     window.localStorage.setItem(CATALOG_SCHEMA_KEY, String(CATALOG_SCHEMA_VERSION));
+    memoryCatalog = null;
     window.dispatchEvent(new CustomEvent("omb:products-updated"));
     return { ok: true };
   } catch (error) {
@@ -119,13 +134,60 @@ export function saveProducts(products) {
   }
 }
 
+// The database is the source of truth for the storefront. This pulls the active
+// catalog (including current stock) and stores it in the local cache so every
+// browser/account sees the same products and the same inventory. It never
+// throws: if the request fails the existing cache is kept untouched, and an
+// empty server answer never wipes the cache.
+export async function syncCatalogFromServer({ timeoutMs = 5000 } = {}) {
+  if (typeof window === "undefined") return { ok: false, reason: "no-window" };
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timer = controller ? window.setTimeout(() => controller.abort(), timeoutMs) : null;
+  try {
+    const response = await fetch("/api/catalog/products", {
+      headers: { Accept: "application/json" },
+      credentials: "same-origin",
+      cache: "no-store",
+      signal: controller?.signal,
+    });
+    if (!response.ok) return { ok: false, reason: `http-${response.status}` };
+    const payload = await response.json();
+    const server = Array.isArray(payload?.products) ? payload.products : [];
+    if (!server.length) return { ok: false, reason: "empty" };
+    // Keep locally known inactive/archived products so the admin list does not
+    // lose them; the storefront filters inactive products anyway.
+    const serverIds = new Set(server.map((product) => String(product.id)));
+    const keepInactive = getProducts().filter(
+      (product) => product.status === "inactive" && !serverIds.has(String(product.id)),
+    );
+    const merged = [...server, ...keepInactive];
+    const saved = saveProducts(merged);
+    if (saved?.ok) { memoryCatalog = null; return { ok: true, count: server.length }; }
+    // Storage full: still show the fresh catalog from memory for this page view.
+    memoryCatalog = merged.map(normalizeProduct);
+    window.dispatchEvent(new CustomEvent("omb:products-updated"));
+    return { ok: true, count: server.length, memoryOnly: true };
+  } catch {
+    return { ok: false, reason: "network" };
+  } finally {
+    if (timer) window.clearTimeout(timer);
+  }
+}
+
 export function getProductById(productId) {
   return getProducts().find((product) => String(product.id) === String(productId)) || null;
 }
 
+// Sold-out items never appear in the "new arrivals" / "best sellers" showcases.
+const SHOWCASE_SECTIONS = ["new-arrivals", "best-sellers"];
+
 export function getProductsForSection(section) {
+  const hideSoldOut = SHOWCASE_SECTIONS.includes(section);
   return getProducts().filter(
-    (product) => product.status !== "inactive" && product.sections?.includes(section),
+    (product) =>
+      product.status !== "inactive" &&
+      product.sections?.includes(section) &&
+      !(hideSoldOut && getProductStock(product) <= 0),
   );
 }
 

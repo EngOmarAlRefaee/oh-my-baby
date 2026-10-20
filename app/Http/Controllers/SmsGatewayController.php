@@ -75,7 +75,6 @@ class SmsGatewayController extends Controller
 
         $recipients = User::query()
             ->where('role', 'customer')
-            ->where('marketing_opt_in', true)
             ->whereNotNull('phone')
             ->where('phone', '!=', '')
             ->get(['id', 'phone'])
@@ -86,6 +85,19 @@ class SmsGatewayController extends Controller
             ->filter(fn (array $row) => $row['phone'] !== null)
             ->unique('phone')
             ->values();
+
+        // Guests: numbers collected automatically from orders.
+        if (Schema::hasTable('marketing_contacts')) {
+            $known = $recipients->pluck('phone')->all();
+            foreach (DB::table('marketing_contacts')->pluck('phone') as $guestPhone) {
+                $guestPhone = $this->normalizeSyrianPhone((string) $guestPhone);
+                if ($guestPhone && ! in_array($guestPhone, $known, true)) {
+                    $known[] = $guestPhone;
+                    $recipients->push(['user_id' => null, 'phone' => $guestPhone]);
+                }
+            }
+            $recipients = $recipients->values();
+        }
 
         abort_if($recipients->isEmpty(), 422, 'No eligible customer phone numbers were found.');
 

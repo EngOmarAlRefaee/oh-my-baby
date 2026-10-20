@@ -8,6 +8,7 @@ use App\Models\FinancialLedgerEntry;
 use App\Models\Order;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class CommissionService
 {
@@ -35,7 +36,9 @@ class CommissionService
         }
 
         $hasDecoration = $order->items->contains(fn ($item) => $item->category === 'decor');
-        $hasOffer = $order->items->contains(fn ($item) => (bool) $item->is_offer);
+        // Only an order made purely of offer items is commission-free. A mixed order
+        // (offer + other section) is charged, on the non-offer pieces' owners.
+        $hasOffer = $order->items->isNotEmpty() && $order->items->every(fn ($item) => (bool) $item->is_offer);
 
         // Decoration uses its own settlement flow.
         if ($hasDecoration) {
@@ -66,7 +69,11 @@ class CommissionService
             );
         }
 
-        $amount = (float) config('ohmybaby.commissions.normal_order_usd', 0.5);
+        // Flat fee by piece count: 1 piece = 0.25$, 2+ pieces = 0.5$ (split between the owning Admins).
+        $pieces = (int) $order->items->sum(fn ($item) => max(0, (int) $item->quantity));
+        $amount = $pieces <= 1
+            ? (float) config('ohmybaby.commissions.single_piece_usd', 0.25)
+            : (float) config('ohmybaby.commissions.normal_order_usd', 0.5);
         $participants = $this->participantAdmins($order);
         $hasOwnershipSnapshot = $order->items->contains(fn ($item) => ! is_null($item->source_admin_user_id));
 
@@ -118,6 +125,57 @@ class CommissionService
         return $commission->refresh()->load('shares.admin:id,name,email');
     }
 
+    /**
+     * Confirms receipt automatically for delivered orders the customer (or a guest,
+     * who has no account to confirm with) never confirmed, once the configured
+     * time has passed since delivery. Only orders still in the plain "delivered"
+     * status are touched: an order with a pending/approved return is never
+     * confirmed, and a later return still reverses the commission.
+     *
+     * @return int number of orders auto-confirmed
+     */
+    public function autoConfirmDeliveredOrders(?int $hours = null): int
+    {
+        $hours ??= (int) config('ohmybaby.commissions.auto_confirm_hours', 12);
+        $cutoff = now()->subHours($hours);
+        $confirmed = 0;
+
+        $ids = Order::query()
+            ->where('status', 'delivered')
+            ->whereNotNull('delivered_at')
+            ->whereNull('customer_confirmed_at')
+            ->where('delivered_at', '<=', $cutoff)
+            ->orderBy('id')
+            ->pluck('id');
+
+        foreach ($ids as $id) {
+            DB::transaction(function () use ($id, $cutoff, $hours, &$confirmed): void {
+                $order = Order::query()->whereKey($id)->lockForUpdate()->first();
+                if (
+                    ! $order
+                    || $order->status !== 'delivered'
+                    || $order->customer_confirmed_at
+                    || ! $order->delivered_at
+                    || $order->delivered_at->gt($cutoff)
+                ) {
+                    return;
+                }
+
+                $order->forceFill(['customer_confirmed_at' => now()])->save();
+                $order->events()->create([
+                    'actor_user_id' => null,
+                    'event' => 'receipt_auto_confirmed',
+                    'note' => null,
+                    'meta' => ['after_hours' => $hours],
+                ]);
+                $this->ensureForDeliveredOrder($order->fresh());
+                $confirmed++;
+            });
+        }
+
+        return $confirmed;
+    }
+
     public function attemptTransfer(CommissionTransfer $commission, ?string $pin = null): CommissionTransfer
     {
         if ((float) $commission->amount_usd <= 0) return $commission;
@@ -163,10 +221,75 @@ class CommissionService
         return $commission->refresh()->load('shares');
     }
 
+
+    /**
+     * Called when the driver finishes a return and has recorded which pieces came back.
+     * - everything returned  -> commission reversed for all owners
+     * - nothing returned     -> unchanged
+     * - partial return       -> commission stays, only owners of the remaining pieces pay
+     */
+    public function applyReturnOutcome(Order $order, string $reason = 'Order returned to store'): ?CommissionTransfer
+    {
+        $order->unsetRelation('items');
+        $order->load('items');
+        $items = $order->items;
+
+        $returnedAny = $items->contains(fn ($i) => (int) $i->returned_quantity > 0);
+        $keptAny = $items->contains(fn ($i) => (int) $i->returned_quantity < (int) $i->quantity);
+
+        if (! $returnedAny) return $order->commission()->first();
+        if (! $keptAny) return $this->reverseForReturnedOrder($order, $reason);
+
+        // Partial return: the customer keeps at least one piece, so the order counts as received.
+        if ($order->delivered_at && ! $order->customer_confirmed_at) {
+            $order->update(['customer_confirmed_at' => now()]);
+        }
+        $commission = $this->ensureForDeliveredOrder($order->refresh());
+
+        if (! in_array($commission->type, ['normal_order'], true) || $commission->status === 'reversed') {
+            return $commission;
+        }
+
+        $remainingIds = $this->participantAdmins($order)->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $shares = $commission->shares()->get();
+        if ($shares->isEmpty() || empty($remainingIds)) return $commission->refresh();
+
+        $amount = (float) $commission->amount_usd;
+        $units = (int) round($amount * 10000);
+        $count = count($remainingIds);
+        sort($remainingIds);
+        $stamp = (string) ($order->returned_at ? \Illuminate\Support\Carbon::parse($order->returned_at)->timestamp : now()->timestamp);
+
+        foreach ($shares as $share) {
+            $adminId = (int) $share->admin_user_id;
+            if (! in_array($adminId, $remainingIds, true)) {
+                if ($share->status !== 'reversed') {
+                    $this->ledger->reverseShare($share, $reason);
+                    $share->update(['status' => 'reversed', 'reversed_at' => now()]);
+                }
+                continue;
+            }
+            $index = array_search($adminId, $remainingIds, true);
+            $newUnits = intdiv($units, $count) + ($index < $units % $count ? 1 : 0);
+            $newAmount = $newUnits / 10000;
+            $extra = round($newAmount - (float) $share->amount_usd, 4);
+            $share->update(['amount_usd' => $newAmount]);
+            $this->ledger->adjustShareCharge($order, $commission, $share, $extra, $stamp);
+        }
+
+        $commission->update([
+            'debtor_user_id' => $count === 1 ? $remainingIds[0] : null,
+        ]);
+
+        return $commission->refresh()->load('shares.admin:id,name,email');
+    }
+
     /** @return Collection<int, User> */
     private function participantAdmins(Order $order): Collection
     {
+        // Owners of pieces that were fully returned do not take part in the commission.
         $ids = $order->items
+            ->filter(fn ($item) => ! $item->is_offer && (int) $item->returned_quantity < (int) $item->quantity)
             ->pluck('source_admin_user_id')
             ->filter()
             ->map(fn ($id) => (int) $id)

@@ -32,7 +32,7 @@ export default function NewbornEssentials({ locale = "ar" }) {
           <div className={`mb-12 sm:mb-16 ${isAr ? "text-right" : "text-left"}`}>
             <div className="flex items-center gap-4">
               <span className="text-[13px] font-bold tracking-[0.18em] text-aubergine">
-                {isAr ? "تشكيلة حديثي الولادة" : "NEWBORN COLLECTION"}
+                {isAr ? "تشكيلة الرضع" : "INFANT COLLECTION"}
               </span>
               <span className="h-px w-20 bg-espresso/25" />
             </div>
@@ -54,7 +54,7 @@ export default function NewbornEssentials({ locale = "ar" }) {
 
           <div className="relative z-10 grid lg:grid-cols-[1.18fr_0.82fr]">
             <a href={collection.href} className="group relative min-h-[580px] overflow-hidden bg-espresso lg:min-h-[720px]">
-              <img src={collection.image} loading="lazy" decoding="async" alt={isAr ? "تشكيلة حديثي الولادة من OH MY BABY" : "OH MY BABY newborn collection"} className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-[1200ms] ease-out group-hover:scale-[1.035]" />
+              <img src={collection.image} loading="lazy" decoding="async" alt={isAr ? "تشكيلة الرضع من OH MY BABY" : "OH MY BABY newborn collection"} className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-[1200ms] ease-out group-hover:scale-[1.035]" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-black/10" />
 
               <div className="absolute left-6 top-6 border border-white/35 bg-black/10 px-4 py-2 backdrop-blur-md sm:left-8 sm:top-8">
@@ -94,7 +94,7 @@ export default function NewbornEssentials({ locale = "ar" }) {
                 </div>
 
                 <div className="mt-11 flex flex-wrap items-center gap-6">
-                  <Button href={collection.href} variant="primary">{isAr ? "تسوّق حديثي الولادة" : "Shop Newborn"}</Button>
+                  <Button href={collection.href} variant="primary">{isAr ? "تسوّق قسم الرضع" : "Shop Infants"}</Button>
                   <a href="/category/newborn" className="omb-link border-espresso/30 text-espresso">{isAr ? "اكتشف المجموعة" : "Explore the collection"}</a>
                 </div>
 

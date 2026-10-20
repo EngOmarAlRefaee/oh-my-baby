@@ -271,18 +271,18 @@ export default function MarketingPage({ locale = "ar" }) {
                   isAr={isAr}
                   onBack={backToHub}
                   title={isAr ? "إيميلات وأرقام الزبائن" : "Customer contacts"}
-                  description={isAr ? "كل بيانات التواصل المسجلة، مع توضيح من وافق على استقبال الرسائل التسويقية." : "All saved customer contact details with marketing opt-in status."}
+                  description={isAr ? "كل الإيميلات (من حسابات الزبائن) وكل الأرقام (من الطلبات، حتى لو ضيف)." : "All emails from accounts and all phone numbers from orders, guests included."}
                 />
                 <div className="mt-7 grid gap-5 lg:grid-cols-2">
                   <div className="rounded-2xl border border-espresso/10 bg-milk p-6">
                     <div className="flex items-center justify-between gap-3"><h3 className="text-xl font-black">{isAr ? "إيميلات الزبائن" : "Customer emails"}</h3><strong className="text-2xl text-aubergine">{contacts.email_total}</strong></div>
                     <p className="mt-2 text-xs text-espresso/50">{isAr ? `المسموح مراسلتهم تسويقيًا: ${contacts.email_marketable}` : `Marketing opt-in: ${contacts.email_marketable}`}</p>
-                    <div className="mt-4 max-h-[420px] overflow-auto border-t border-espresso/10">{(contacts.emails || []).map((row) => <div key={row.value} className="flex items-center justify-between gap-3 border-b border-espresso/10 py-2 text-sm"><span className="min-w-0 break-all">{row.value}</span><span className="shrink-0 text-xs text-espresso/45">{row.marketing_opt_in ? (isAr ? "موافق" : "opted in") : (isAr ? "غير موافق" : "no opt-in")}</span></div>)}</div>
+                    <div className="mt-4 max-h-[420px] overflow-auto border-t border-espresso/10">{(contacts.emails || []).map((row) => <div key={row.value} className="flex items-center justify-between gap-3 border-b border-espresso/10 py-2 text-sm"><span className="min-w-0 break-all">{row.value}</span><span className="shrink-0 text-xs text-espresso/45">{row.marketing_opt_in ? (isAr ? "جاهز" : "ready") : (isAr ? "جاهز" : "ready")}</span></div>)}</div>
                   </div>
                   <div className="rounded-2xl border border-espresso/10 bg-milk p-6">
                     <div className="flex items-center justify-between gap-3"><h3 className="text-xl font-black">{isAr ? "أرقام الزبائن" : "Customer phones"}</h3><strong className="text-2xl text-aubergine">{contacts.phone_total}</strong></div>
                     <p className="mt-2 text-xs text-espresso/50">{isAr ? `المسموح مراسلتهم تسويقيًا: ${contacts.phone_marketable}` : `Marketing opt-in: ${contacts.phone_marketable}`}</p>
-                    <div className="mt-4 max-h-[420px] overflow-auto border-t border-espresso/10">{(contacts.phones || []).map((row) => <div key={row.value} className="flex items-center justify-between gap-3 border-b border-espresso/10 py-2 text-sm"><span>{row.value}</span><span className="shrink-0 text-xs text-espresso/45">{row.marketing_opt_in ? (isAr ? "موافق" : "opted in") : (isAr ? "غير موافق" : "no opt-in")}</span></div>)}</div>
+                    <div className="mt-4 max-h-[420px] overflow-auto border-t border-espresso/10">{(contacts.phones || []).map((row) => <div key={row.value} className="flex items-center justify-between gap-3 border-b border-espresso/10 py-2 text-sm"><span>{row.value}</span><span className="shrink-0 text-xs text-espresso/45">{row.marketing_opt_in ? (isAr ? "جاهز" : "ready") : (isAr ? "جاهز" : "ready")}</span></div>)}</div>
                   </div>
                 </div>
               </section>
