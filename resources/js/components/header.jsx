@@ -748,6 +748,33 @@ export default function Header({
             </div>
           </div>
         </nav>
+
+        <nav
+          dir={isAr ? "rtl" : "ltr"}
+          aria-label={isAr ? "الأقسام" : "Sections"}
+          className="omb-mobile-nav border-b border-espresso/8 bg-milk lg:hidden"
+        >
+          <div className="flex gap-2 overflow-x-auto px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {[
+              ["/#new-arrivals", isAr ? "وصل حديثاً" : "New arrivals"],
+              ["/category/clothing", isAr ? "ملابس" : "Clothing"],
+              ["/#product-hero", isAr ? "العروض" : "Offers"],
+              ["/#baby-world", isAr ? "عالم الطفل" : "Baby World"],
+              ["/#newborn-essentials", isAr ? "الرضع" : "Infants"],
+              ["/#featured-collection", isAr ? "العودة للمدرسة" : "Back to school"],
+              ["/#best-sellers", isAr ? "الأكثر طلباً" : "Best sellers"],
+            ].map(([href, label]) => (
+              <a
+                key={href}
+                href={href}
+                onClick={(event) => handleHomeAnchor(event, href)}
+                className="shrink-0 whitespace-nowrap rounded-full border border-espresso/12 px-3.5 py-1.5 text-[12px] font-bold text-espresso/80"
+              >
+                {label}
+              </a>
+            ))}
+          </div>
+        </nav>
       </header>
 
       <CartAddedNotice locale={locale} />
