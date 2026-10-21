@@ -220,14 +220,14 @@ export default function AdminSiteContentPage({ locale = "ar" }) {
           <div className="md:col-span-2">
             <span className="text-sm font-black">{isAr ? "صورة القسم" : "Section image"}</span>
             <div className="mt-2 flex flex-wrap items-center gap-4">
-              {form.image && <img src={form.image} alt="" className="h-24 w-20 border border-espresso/10 object-cover" />}
+              {form.image && <img loading="lazy" decoding="async" src={form.image} alt="" className="h-24 w-20 border border-espresso/10 object-cover" />}
               <input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy === "upload"} onChange={(e) => uploadImage(e.target.files?.[0])} className="block text-xs" />
               {busy === "upload" && <span className="text-xs font-bold text-espresso/60">{isAr ? "جاري الرفع..." : "Uploading..."}</span>}
             </div>
             {form.image && (
               <div className="mt-4 grid gap-5 border border-espresso/10 bg-oat/20 p-4 md:grid-cols-[240px_1fr]">
                 <div className="relative h-56 w-full overflow-hidden bg-espresso md:w-60">
-                  <img src={form.image} alt="" className="h-full w-full object-cover" style={{ objectPosition: `${form.imageX}% ${form.imageY}%`, transform: `scale(${form.imageZoom})`, transformOrigin: `${form.imageX}% ${form.imageY}%` }} />
+                  <img loading="lazy" decoding="async" src={form.image} alt="" className="h-full w-full object-cover" style={{ objectPosition: `${form.imageX}% ${form.imageY}%`, transform: `scale(${form.imageZoom})`, transformOrigin: `${form.imageX}% ${form.imageY}%` }} />
                 </div>
                 <div className="grid content-start gap-4 text-sm">
                   <p className="font-black">{isAr ? "ضبط الصورة (المعاينة على اليسار)" : "Adjust the image (preview on the left)"}</p>

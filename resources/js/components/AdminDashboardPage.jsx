@@ -249,7 +249,7 @@ export default function AdminDashboardPage({ locale = "ar" }) {
                     <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                       {stockAlerts.products.map((p) => (
                         <div key={p.id} className="flex items-center gap-3 rounded-xl border border-espresso/10 bg-milk p-3">
-                          {p.image && <img src={p.image} alt="" className="h-14 w-12 rounded-md object-cover" />}
+                          {p.image && <img loading="lazy" decoding="async" src={p.image} alt="" className="h-14 w-12 rounded-md object-cover" />}
                           <div className="min-w-0">
                             <strong className="block truncate text-sm">{p.name}</strong>
                             <p className="mt-0.5 truncate text-xs text-espresso/55">{isAr ? "صاحب المنتج: " : "Owner: "}{p.owner || "—"}</p>

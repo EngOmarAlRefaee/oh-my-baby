@@ -64,7 +64,7 @@ export default function Footer({ locale = "ar" }) {
             <div className="mx-auto max-w-[1440px] px-5 sm:px-8 lg:px-10">
                 <div className="grid gap-12 md:grid-cols-[1.2fr_1fr_1fr_1fr]">
                     <div>
-                        <img src="/images/brand/logo-transparent.png" alt="Oh My Baby" className="h-14 w-auto object-contain" />
+                        <img loading="lazy" decoding="async" src="/images/brand/logo-transparent.png" alt="Oh My Baby" className="h-14 w-auto object-contain" />
                         <p className="mt-4 max-w-[220px] text-sm leading-6 text-espresso/50">{t.tagline}</p>
                     </div>
                     <FooterColumn title={t.shop}>{t.shopLinks.map(([label, href]) => <FooterLink key={label} href={href}>{label}</FooterLink>)}</FooterColumn>

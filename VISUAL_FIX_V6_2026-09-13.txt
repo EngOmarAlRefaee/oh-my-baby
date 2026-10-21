@@ -1,0 +1,9 @@
+OH MY BABY — VISUAL FIX V6 — 2026-09-13
+
+- Best Sellers is now discovery-only:
+  * no static price under the card
+  * no Add to Bag / Quick Add in this section
+  * price appears on hover/focus over the image
+  * clicking the card opens /product/{id}, where the customer can choose options and order
+- Account section copy was clarified so it is clearly the actual sign-in/create-account gateway.
+- Account and rewards headline typography reduced to a more balanced editorial scale.

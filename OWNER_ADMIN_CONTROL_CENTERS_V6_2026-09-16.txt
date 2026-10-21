@@ -1,0 +1,45 @@
+OH MY BABY — V6 ADMIN + OWNER CONTROL CENTERS
+
+ADMIN
+- Login redirects automatically to /admin.
+- 5 main cards:
+  1) Accounts & team
+  2) Orders & operations
+  3) Requests to Owner
+  4) Statistics & monitoring
+  5) Browse the store as customer
+- While browsing the storefront, Admin sees an extra "لوحة التحكم" header button that returns to /admin.
+- The primary Admin can supervise other Admins within the permissions layer already added by the multi-admin patch.
+
+OWNER
+- Login redirects automatically to /owner.
+- Same operating structure, adapted for Owner:
+  1) Accounts & team
+  2) Orders & operations
+  3) Admin requests & communication
+  4) Statistics & monitoring
+  5) Browse the store as customer
+  6) Owner-only controls
+- Owner-only card contains finance/commissions, Sham Cash state, high-level permissions, approvals and operational override shortcuts.
+- Owner also gets the "لوحة التحكم" header button while browsing the storefront, returning to /owner.
+
+ANALYTICS / CONTROL CENTER DATA
+- Unique visits today
+- Page views today
+- Login events today/month
+- Delivered orders
+- Door returns
+- Post-delivery return requests
+- Owner/Admin communication requests
+
+INSTALL
+1) Copy patch contents over the V6 website folder and replace files.
+2) Run START_TEST_WINDOWS.bat (recommended), OR run:
+   php artisan migrate --force
+   php artisan optimize:clear
+3) Keep Vite running and use Ctrl+Shift+R.
+
+NEW DATABASE TABLES / FIELDS
+- users.is_primary_admin
+- owner_requests
+- site_visits

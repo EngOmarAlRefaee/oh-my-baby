@@ -6,6 +6,12 @@
     <meta name="theme-color" content="#F8F5EF">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Oh My Baby</title>
+    <link rel="icon" type="image/png" href="/images/brand/bear-mark.png">
+    <link rel="apple-touch-icon" href="/images/brand/bear-mark.png">
+    <style>
+        body{margin:0;background:#F8F5EF}
+        #boot{display:flex;min-height:100vh;align-items:center;justify-content:center;font:700 14px system-ui,sans-serif;letter-spacing:.3em;color:#6b5b53}
+    </style>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,6 +21,6 @@
     @vite(['resources/css/app.css', 'resources/js/app.jsx'])
 </head>
 <body>
-    <div id="root"></div>
+    <div id="root"><div id="boot">OH MY BABY</div></div>
 </body>
 </html>

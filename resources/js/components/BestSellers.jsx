@@ -21,7 +21,6 @@ function BestSellerCard({ product, locale = "ar" }) {
           <img
             src={product.image}
             alt={name}
-            loading="lazy"
             decoding="async"
             style={{ objectPosition: product.position || "center" }}
             className="omb-media-zoom aspect-[4/5] w-full object-cover"
@@ -78,6 +77,13 @@ export default function BestSellers({ locale = "ar" }) {
     return Array.from(new Map(source.map((product) => [String(product.id), product])).values()).slice(0, 10);
   }, [sales]);
 
+  // لو المنتجات قليلة نكرّرها حتى يمتلئ الشريط ويضل يلف بدون فراغ.
+  const filled = useMemo(() => {
+    if (!products.length) return [];
+    const total = Math.max(8, products.length);
+    return Array.from({ length: total }, (_, i) => products[i % products.length]);
+  }, [products]);
+
   return (
     <section id="best-sellers" className="overflow-hidden bg-oat/30 py-20 sm:py-28" dir={isAr ? "rtl" : "ltr"}>
       <div className="w-full px-4 sm:px-6 lg:px-10">
@@ -98,7 +104,7 @@ export default function BestSellers({ locale = "ar" }) {
           <div className="omb-best-marquee-track">
             {[0, 1].map((groupIndex) => (
               <div className="omb-best-marquee-sequence" key={`sequence-${groupIndex}`} aria-hidden={groupIndex === 1 ? "true" : undefined}>
-                {products.map((product, index) => (
+                {filled.map((product, index) => (
                   <div className="omb-best-marquee-card" key={`${groupIndex}-${product.id}-${index}`}>
                     <BestSellerCard product={product} locale={locale} />
                   </div>

@@ -55,7 +55,7 @@ export default function ProductCard({ product, locale = "ar" }) {
             <img
               src={product.image}
               alt={name}
-              loading="lazy"
+              
               decoding="async"
               style={{ objectPosition: product.position || "center" }}
               className="aspect-[4/5] w-full object-cover"
@@ -66,7 +66,7 @@ export default function ProductCard({ product, locale = "ar" }) {
             <img
               src={product.image}
               alt={name}
-              loading="lazy"
+              
               decoding="async"
               style={{ objectPosition: product.position || "center" }}
               className="omb-media-zoom aspect-[4/5] w-full object-cover"

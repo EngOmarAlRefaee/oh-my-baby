@@ -1,0 +1,8 @@
+OH MY BABY — Visual Fix V5
+
+- Account section redesigned as a premium invitation instead of a large exposed form.
+- Sign-in/create-account UI now opens in a focused modal; backend/auth logic is unchanged.
+- Light-mode moving micro-particles made clearly visible while keeping the warm off-white base.
+- Dark-mode washed charcoal replaced by true black/graphite + warm beige accents.
+- Site-wide scroll reveal added: each section enters with one clear calm rise/fade, with small stagger for marked content.
+- Includes the V4 anchor-navigation correction.

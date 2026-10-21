@@ -113,7 +113,7 @@ html[dir] .omb-scroll-motion.is-visible [data-scroll-item][data-scroll-motion-pr
 @media (max-width: 640px) {
   html, body { overflow-x: hidden; }
   main table { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  main img, main video { max-width: 100%; height: auto; }
+  main img, main video { max-width: 100%; }
   main h1 { font-size: clamp(1.5rem, 7vw, 2.25rem); line-height: 1.2; overflow-wrap: anywhere; }
   main .grid > * { min-width: 0; }
   main button, main a.btn, main [role="button"] { min-height: 40px; }

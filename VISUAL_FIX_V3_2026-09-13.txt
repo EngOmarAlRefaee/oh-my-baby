@@ -1,0 +1,8 @@
+OH MY BABY — VISUAL FIX V3 — 2026-09-13
+
+- Best Sellers product cards enlarged moderately.
+- Home anchor links now leave 72px more breathing room below the sticky header.
+- Rewards section now has visitor mode vs real signed-in customer progress.
+- Home bottom order: Trust -> Rewards -> Account -> Newsletter -> Footer.
+- SYP price changed to a distinct warm copper in Light and warm gold in Dark.
+- Exchange-rate hook now refreshes every 5 minutes while the page stays open and refreshes when the tab becomes visible.

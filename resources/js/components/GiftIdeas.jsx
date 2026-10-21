@@ -232,7 +232,7 @@ function ComingSoonCard({ locale, image, titleAr, titleEn, descriptionAr, descri
   return (
     <article className={`omb-baby-card group relative overflow-hidden bg-espresso ${size === "hero" ? "is-hero" : ""}`}>
       <div className={`relative min-h-[280px] overflow-hidden ${mediaClassName}`}>
-        <img src={image} loading="lazy" decoding="async" alt={isAr ? titleAr : titleEn} className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-[1200ms] ease-out group-hover:scale-[1.035]" />
+        <img src={image} decoding="async" alt={isAr ? titleAr : titleEn} className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-[1200ms] ease-out group-hover:scale-[1.035]" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
         <span className={`absolute top-5 z-20 bg-butter px-4 py-2 text-xs font-black text-espresso ${isAr ? "left-5" : "right-5"}`}>{isAr ? "قريباً" : "COMING SOON"}</span>
         <div className="absolute bottom-0 left-0 right-0 p-6 text-white sm:p-8">

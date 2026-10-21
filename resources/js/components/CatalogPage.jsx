@@ -272,13 +272,13 @@ function ProductDetail({ locale, product }) {
       <div className="grid gap-9 lg:grid-cols-[1.08fr_0.92fr] lg:gap-14 xl:gap-20">
         <div>
           <div className="overflow-hidden bg-oat/35">
-            <img src={gallery[activeImage] || product.image} alt={isAr ? product.name : product.nameEn || product.name} className="aspect-[4/5] w-full object-cover" />
+            <img fetchpriority="high" decoding="async" src={gallery[activeImage] || product.image} alt={isAr ? product.name : product.nameEn || product.name} className="aspect-[4/5] w-full object-cover" />
           </div>
           {gallery.length > 1 && (
             <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-5">
               {gallery.map((image, index) => (
                 <button key={`${image}-${index}`} type="button" onClick={() => setActiveImage(index)} className={`overflow-hidden border ${index === activeImage ? "border-aubergine" : "border-espresso/10"}`}>
-                  <img src={image} alt="" className="aspect-[4/5] w-full object-cover" />
+                  <img decoding="async" src={image} alt="" className="aspect-[4/5] w-full object-cover" />
                 </button>
               ))}
             </div>
@@ -417,7 +417,7 @@ function CartPage({ locale }) {
           <div className="grid gap-4">
             {items.map((item) => (
               <article key={item.key} className="grid grid-cols-[100px_1fr] gap-4 border-b border-espresso/10 pb-4 sm:grid-cols-[130px_1fr_auto]">
-                <img src={item.color?.image || item.product.image} alt="" className="aspect-[4/5] w-full object-cover" />
+                <img decoding="async" src={item.color?.image || item.product.image} alt="" className="aspect-[4/5] w-full object-cover" />
                 <div>
                   <h2 className="font-black text-espresso">{isAr ? item.product.name : item.product.nameEn || item.product.name}</h2>
                   {item.product.code && <p className="mt-0.5 text-[11px] font-bold tracking-widest text-espresso/45" dir="ltr">{item.product.code}</p>}
@@ -569,7 +569,7 @@ function WorldLanding({ locale, worldId }) {
           const item = categoryMap[child];
           return (
             <a key={child} href={`/category/${child}`} className="group relative min-h-[420px] overflow-hidden bg-espresso">
-              <img src={item.image} alt={isAr ? item.ar : item.en} className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.025]" />
+              <img decoding="async" src={item.image} alt={isAr ? item.ar : item.en} className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.025]" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
               <h2 className="absolute bottom-6 left-6 right-6 text-2xl font-black text-white">{isAr ? item.ar : item.en}</h2>
             </a>

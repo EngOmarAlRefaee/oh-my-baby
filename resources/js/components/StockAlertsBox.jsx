@@ -29,7 +29,7 @@ export default function StockAlertsBox({ locale = "ar" }) {
       <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {alerts.products.map((product) => (
           <a key={product.id} href="/admin/products" className="flex items-center gap-3 rounded-xl border border-red-200 bg-milk p-3">
-            {product.image && <img src={product.image} alt="" className="h-14 w-12 rounded object-cover grayscale" />}
+            {product.image && <img loading="lazy" decoding="async" src={product.image} alt="" className="h-14 w-12 rounded object-cover grayscale" />}
             <div className="min-w-0">
               <strong className="block truncate text-sm text-espresso">{product.name}</strong>
               <span className="text-xs text-espresso/50">{product.owner_name ? `${isAr ? "صاحبه: " : "Owner: "}${product.owner_name}` : (isAr ? "بدون صاحب" : "No owner")}</span>

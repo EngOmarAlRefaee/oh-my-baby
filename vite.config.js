@@ -12,4 +12,16 @@ export default defineConfig({
         react(),
         tailwindcss(),
     ],
+    build: {
+        target: "es2020",
+        cssCodeSplit: true,
+        chunkSizeWarningLimit: 700,
+        rollupOptions: {
+            output: {
+                manualChunks(id) {
+                    if (id.includes("node_modules/react") || id.includes("node_modules/scheduler")) return "react";
+                },
+            },
+        },
+    },
 });

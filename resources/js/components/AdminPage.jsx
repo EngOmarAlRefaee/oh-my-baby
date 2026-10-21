@@ -747,7 +747,7 @@ export default function AdminPage({ locale = "ar" }) {
                 key={product.id}
                 className="grid gap-5 border border-espresso/10 bg-oat/20 p-4 sm:grid-cols-[110px_1fr_auto] sm:items-center"
               >
-                <img
+                <img loading="lazy" decoding="async"
                   src={product.colors?.find((color) => color.image)?.image || product.image}
                   alt=""
                   className="aspect-[4/5] h-28 w-full object-cover sm:w-24"
@@ -1059,7 +1059,7 @@ export default function AdminPage({ locale = "ar" }) {
                       {(color.images?.length || color.image) && (
                         <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
                           {(color.images?.length ? color.images : [color.image]).map((image, index) => (
-                            <img key={`${color.id}-${index}`} src={image} alt="" className="h-24 w-20 flex-none object-cover" />
+                            <img loading="lazy" decoding="async" key={`${color.id}-${index}`} src={image} alt="" className="h-24 w-20 flex-none object-cover" />
                           ))}
                         </div>
                       )}
@@ -1072,7 +1072,7 @@ export default function AdminPage({ locale = "ar" }) {
                     {isAr ? "المنتج ما إلو ألوان؟ ارفعي صورته الأساسية" : "No color variants? Upload the main image"}
                     <input type="file" accept="image/*" onChange={(e) => setMainImage(e.target.files?.[0])} className="mt-3 block w-full text-xs" />
                   </label>
-                  {form.image && <img src={form.image} alt="" className="mt-4 h-36 w-28 object-cover" />}
+                  {form.image && <img loading="lazy" decoding="async" src={form.image} alt="" className="mt-4 h-36 w-28 object-cover" />}
                 </div>
               )}
             </div>
@@ -1273,7 +1273,7 @@ export default function AdminPage({ locale = "ar" }) {
             <div>
               <h2 className="text-2xl font-black">{stepTitles.review}</h2>
               <div className="mt-7 grid gap-7 lg:grid-cols-[300px_1fr]">
-                <img src={form.colors?.find((color) => color.image)?.image || form.image} alt="" className="aspect-[4/5] w-full bg-oat object-cover" />
+                <img loading="lazy" decoding="async" src={form.colors?.find((color) => color.image)?.image || form.image} alt="" className="aspect-[4/5] w-full bg-oat object-cover" />
                 <div>
                   <p className="omb-eyebrow-label text-aubergine/60">{isAr ? world?.ar : world?.en}</p>
                   <p className="mt-2 text-sm font-black text-espresso/55">{selectedCategoryLabel(form)}</p>

@@ -1,0 +1,16 @@
+OH MY BABY — UI polish patch
+Contains two replacement frontend components taken from the supplied project context:
+- AdminDashboardPage.jsx: aligns the admin dashboard's page frame, hero header, spacing, and responsive card grid with the Owner dashboard structure. Permission-filtered modules remain permission-filtered.
+- TeamManagementPage.jsx: makes audit event names human-readable in Arabic/English where mapped and presents each audit event as a separate card. Backend audit records and permissions are unchanged.
+
+Install safely:
+1. Back up the current files first.
+2. In your project, locate the existing files by name (likely resources/js/components/AdminDashboardPage.jsx and resources/js/components/TeamManagementPage.jsx; use the paths from your actual project).
+3. Replace only these two files with the matching files in this ZIP.
+4. Run `npm run build`.
+5. Test `/admin`, `/owner/team`, account creation/edit/suspension and confirm the owner-only audit log remains visible only to Owner.
+
+Notes:
+- This patch does not change role permissions, database schema, backend logging, or the selected light/dark theme.
+- Audit event labels not listed in the translation map will continue to display their original action code, rather than guessing a translation.
+- I cannot run the Laravel/Vite project in your local environment, so verify the build and pages before keeping the change. Restore the backups if anything regresses.

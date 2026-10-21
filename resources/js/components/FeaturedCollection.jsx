@@ -66,7 +66,6 @@ export default function FeaturedCollection({ locale = "ar", previewContent }) {
             >
               <img
                 src={c.image}
-                loading="lazy"
                 decoding="async"
                 alt={c.imageAlt}
                 style={{ objectPosition: `${c.imageX}% ${c.imageY}%`, transform: c.imageZoom > 1 ? `scale(${c.imageZoom})` : undefined, transformOrigin: `${c.imageX}% ${c.imageY}%` }}

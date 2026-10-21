@@ -127,7 +127,7 @@ function HeaderAction({ label, children, onClick, className = "", badge }) {
       type="button"
       onClick={onClick}
       aria-label={label}
-      className={`omb-header-icon relative flex h-11 w-11 items-center justify-center text-espresso ${className}`.trim()}
+      className={`omb-header-icon relative flex h-9 w-9 items-center min-[400px]:h-10 min-[400px]:w-10 sm:h-11 sm:w-11 justify-center text-espresso ${className}`.trim()}
     >
       <span className="relative z-10">{children}</span>
       {badge !== undefined && (
@@ -558,9 +558,9 @@ export default function Header({
         <div className="omb-header-brand border-b border-espresso/8 bg-milk/98">
           <div
             dir={isAr ? "rtl" : "ltr"}
-            className="omb-header-brand-row grid h-[78px] w-full grid-cols-[1fr_auto_1fr] items-center px-6 sm:h-[88px] sm:px-10 lg:px-14 xl:px-16 2xl:px-20"
+            className="omb-header-brand-row grid h-[78px] w-full grid-cols-[1fr_auto_1fr] items-center px-3 min-[420px]:px-5 sm:h-[88px] sm:px-10 lg:px-14 xl:px-16 2xl:px-20"
           >
-            <div className="flex min-w-0 items-center justify-self-start gap-1.5 sm:gap-2">
+            <div className="flex min-w-0 items-center justify-self-start gap-0.5 sm:gap-2">
               <HeaderAction
                 label={isAr ? "فتح القائمة" : "Open menu"}
                 onClick={() => setMobileMenuOpen(true)}
@@ -604,27 +604,27 @@ export default function Header({
               <button
                 type="button"
                 onClick={() => onLocaleChange(isAr ? "en" : "ar")}
-                className="ms-2 flex h-11 items-center justify-center px-3 text-[13px] font-bold tracking-[0.12em]"
+                className="ms-1 hidden h-10 items-center justify-center px-2 text-[12px] font-bold tracking-[0.1em] sm:ms-2 sm:flex sm:h-11 sm:px-3 sm:text-[13px]"
               >
                 {isAr ? "EN" : "AR"}
               </button>
-              <div className="flex items-center gap-2">
+              <div className="hidden items-center gap-2 sm:flex">
                 <ThemeToggle
                   darkMode={darkMode}
                   onToggle={() => onThemeChange(!darkMode)}
                   label={darkMode ? copy.light : copy.theme}
                 />
-                <span className="hidden text-[11px] font-bold uppercase tracking-[0.12em] sm:inline">
+                <span className="hidden text-[11px] font-bold uppercase tracking-[0.12em] 2xl:inline">
                   {darkMode ? "Dark" : "Light"}
                 </span>
               </div>
             </div>
             <a
               href="/"
-              className="omb-wordmark justify-self-center"
+              className="omb-wordmark justify-self-center max-[420px]:-translate-x-2 max-[350px]:-translate-x-3"
               aria-label="Oh My Baby home"
             >
-              <span className="omb-brand-wordmark-text font-serif text-[26px] font-semibold tracking-[0.15em] sm:text-[28px]">
+              <span className="omb-brand-wordmark-text block whitespace-nowrap font-serif text-[15px] max-[350px]:text-[12px] max-[350px]:tracking-[0.03em] font-semibold tracking-[0.06em] min-[380px]:text-[17px] min-[380px]:tracking-[0.08em] min-[420px]:text-[21px] min-[420px]:tracking-[0.12em] sm:text-[26px] sm:tracking-[0.15em] lg:text-[28px]">
                 OH MY BABY
               </span>
             </a>
@@ -636,7 +636,7 @@ export default function Header({
               <img
                 src="/images/brand/bear-mark.png"
                 alt="Oh My Baby"
-                className="omb-brand-mark h-[56px] w-auto object-contain sm:h-[64px]"
+                className="omb-brand-mark max-[350px]:h-[32px] h-[40px] w-auto object-contain min-[420px]:h-[48px] sm:h-[64px]" onError={(e) => { e.currentTarget.style.display = "none"; }}
               />
             </a>
           </div>
@@ -904,7 +904,10 @@ export default function Header({
 
               {menuLink("/#account", isAr ? "تسجيل الدخول" : "Sign in")}
 
-              <div className="mt-6 flex items-center justify-between">
+              <button type="button" onClick={() => onLocaleChange(isAr ? "en" : "ar")} className="mt-6 w-full border border-espresso/15 py-3 text-sm font-black tracking-[0.12em]">
+                {isAr ? "English" : "العربية"}
+              </button>
+              <div className="mt-4 flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-[0.12em]">
                   {darkMode ? "Dark" : "Light"}
                 </span>

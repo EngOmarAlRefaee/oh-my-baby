@@ -54,7 +54,7 @@ export default function NewbornEssentials({ locale = "ar" }) {
 
           <div className="relative z-10 grid lg:grid-cols-[1.18fr_0.82fr]">
             <a href={collection.href} className="group relative min-h-[580px] overflow-hidden bg-espresso lg:min-h-[720px]">
-              <img src={collection.image} loading="lazy" decoding="async" alt={isAr ? "تشكيلة الرضع من OH MY BABY" : "OH MY BABY newborn collection"} className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-[1200ms] ease-out group-hover:scale-[1.035]" />
+              <img src={collection.image} decoding="async" alt={isAr ? "تشكيلة الرضع من OH MY BABY" : "OH MY BABY newborn collection"} className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-[1200ms] ease-out group-hover:scale-[1.035]" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-black/10" />
 
               <div className="absolute left-6 top-6 border border-white/35 bg-black/10 px-4 py-2 backdrop-blur-md sm:left-8 sm:top-8">

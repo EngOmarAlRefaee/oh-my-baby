@@ -598,7 +598,7 @@ export default function CheckoutPage({ locale = "ar" }) {
                 key={item.key}
                 className="grid grid-cols-[64px_1fr] gap-3 border-b border-espresso/10 pb-4"
               >
-                <img
+                <img loading="lazy" decoding="async"
                   src={item.color?.image || item.product.image}
                   className="aspect-[4/5] w-full object-cover"
                   alt=""

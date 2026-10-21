@@ -15,7 +15,7 @@ export default function Hero({ locale = "ar" }) {
   return (
     <section id="product-hero" dir={isAr ? "rtl" : "ltr"} aria-label={isAr ? "العروض" : "Offers"} className="relative isolate w-full overflow-hidden bg-espresso">
       <div className="relative w-full" style={{ height: "clamp(700px, 78vh, 860px)" }}>
-        <img src={active.src} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        <img src={active.src} alt="" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
         <div className={`absolute bottom-16 z-20 max-w-[620px] ${isAr ? "right-7 sm:right-12 xl:right-20" : "left-7 sm:left-12 xl:left-20"} ${isAr ? "text-right" : "text-left"}`}>
           <p className="text-[12px] font-bold uppercase tracking-[0.25em] text-white/65">{isAr ? "قسم العروض" : "OFFERS"}</p>
