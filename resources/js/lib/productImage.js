@@ -387,7 +387,7 @@ export async function unifyProductImage(source, { bg = PRODUCT_IMAGE_BG, size = 
   }
   ctx.drawImage(src, sx, sy, sw, sh, (W - dw) / 2, (H - dh) / 2, dw, dh);
   sharpenCanvas(out, 0.35);
-  return { dataUrl: out.toDataURL("image/jpeg", 0.92), removed, method };
+  return { dataUrl: encodeSmall(out), removed, method };
 }
 
 function loadImage(source) {
@@ -419,4 +419,37 @@ function sharpenCanvas(canvas, amount) {
     }
     ctx.putImageData(img, 0, 0);
   } catch { /* sharpening is optional */ }
+}
+
+
+/** WebP (جودة 82%) لتخفيف الحجم؛ إذا المتصفح ما بيدعم WebP نرجع JPEG (جودة 85%). */
+export function encodeSmall(canvas) {
+  try {
+    const webp = canvas.toDataURL("image/webp", 0.82);
+    if (webp.startsWith("data:image/webp")) return webp;
+  } catch {
+    // ignore and fall back to JPEG
+  }
+  return canvas.toDataURL("image/jpeg", 0.85);
+}
+
+/** يصغّر صورة بدون إزالة الخلفية (أقصى ضلع 1400px) ويضغطها. GIF/SVG بتضل كما هي. */
+export async function compressImage(source, maxSide = 1400) {
+  if (typeof document === "undefined" || /^data:image\/(gif|svg)/i.test(source)) return source;
+  try {
+    const img = await loadImage(source);
+    const k = Math.min(1, maxSide / Math.max(img.width, img.height));
+    const w = Math.max(1, Math.round(img.width * k));
+    const h = Math.max(1, Math.round(img.height * k));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, 0, 0, w, h);
+    const out = encodeSmall(canvas);
+    return out.length < source.length ? out : source;
+  } catch {
+    return source;
+  }
 }

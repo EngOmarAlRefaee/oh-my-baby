@@ -7,7 +7,7 @@ export default function VideoHero({ locale = "ar" }) {
 
   return (
     <section id="home-hero" className="relative w-full overflow-hidden bg-black">
-      <div className="relative h-[72vh] min-h-[560px] max-h-[820px] w-full bg-black">
+      <div className="relative w-full bg-black" style={{ height: "calc(100svh - var(--omb-header-offset, 150px))", minHeight: 600, maxHeight: 1000 }}>
         <div className="absolute inset-0 z-10 flex items-center justify-center px-6 text-center">
           <div>
             <p className="text-sm uppercase tracking-[0.35em] text-white/75">WELCOME TO</p>

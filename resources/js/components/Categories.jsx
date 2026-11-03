@@ -11,7 +11,7 @@ const categories = [
     subtitleEn: "For first cuddles and the softest naps",
     tag: "NEWBORN",
     image: "/images/categories/optimized/newborn.webp",
-    position: "center 48%",
+    position: "28% 48%",
     size: "md:col-span-2 md:row-span-2",
   },
   {
@@ -54,8 +54,9 @@ const categories = [
     subtitleAr: "تفاصيل صغيرة بتكمّل الحكاية",
     subtitleEn: "Little details that complete the story",
     tag: "DETAILS",
-    image: "/images/categories/optimized/accessories-gifts-v2.webp",
-    position: "center 52%",
+    image: "/images/categories/optimized/accessories.webp",
+    fallbackImage: "/images/categories/optimized/accessories-gifts-v2.webp",
+    position: "center 40%",
     size: "md:col-span-2 md:row-span-2",
   },
 ];
@@ -111,6 +112,12 @@ export default function Categories({ locale = "ar" }) {
                     src={category.image}
                     alt=""
                     decoding="async"
+                    onError={(event) => {
+                      if (category.fallbackImage && !event.currentTarget.dataset.fb) {
+                        event.currentTarget.dataset.fb = "1";
+                        event.currentTarget.src = category.fallbackImage;
+                      }
+                    }}
                     className="omb-media-zoom absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
                     style={{ objectPosition: category.position }}
                   />

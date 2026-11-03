@@ -576,7 +576,7 @@ export default function Header({
               </HeaderAction>
               <HeaderAction
                 label={isAr ? "الحساب" : "Account"}
-                className="hidden sm:flex"
+                className="hidden lg:flex"
                 onClick={() => {
                   window.location.href = "/account";
                 }}
@@ -585,7 +585,7 @@ export default function Header({
               </HeaderAction>
               <HeaderAction
                 label={isAr ? "المفضلة" : "Wishlist"}
-                className="hidden sm:flex"
+                className="hidden lg:flex"
                 onClick={() => {
                   window.location.href = "/wishlist";
                 }}
@@ -604,11 +604,11 @@ export default function Header({
               <button
                 type="button"
                 onClick={() => onLocaleChange(isAr ? "en" : "ar")}
-                className="ms-1 hidden h-10 items-center justify-center px-2 text-[12px] font-bold tracking-[0.1em] sm:ms-2 sm:flex sm:h-11 sm:px-3 sm:text-[13px]"
+                className="ms-1 hidden h-10 items-center justify-center px-2 text-[12px] font-bold tracking-[0.1em] sm:ms-2 lg:flex sm:h-11 sm:px-3 sm:text-[13px]"
               >
                 {isAr ? "EN" : "AR"}
               </button>
-              <div className="hidden items-center gap-2 sm:flex">
+              <div className="hidden items-center gap-2 lg:flex">
                 <ThemeToggle
                   darkMode={darkMode}
                   onToggle={() => onThemeChange(!darkMode)}
@@ -928,6 +928,8 @@ export default function Header({
                   dashboardHref,
                   isAr ? "لوحة التحكم" : "Dashboard",
                 )}
+
+              {menuLink("/wishlist", isAr ? "المفضلة" : "Wishlist")}
 
               {menuLink("/#account", isAr ? "تسجيل الدخول" : "Sign in")}
 

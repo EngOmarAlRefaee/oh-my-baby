@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { unifyProductImage } from "../lib/productImage";
+import { unifyProductImage, compressImage } from "../lib/productImage";
 import { translateArToEn } from "../lib/translate";
 import {
   categoryTree,
@@ -68,14 +68,14 @@ function readBgPref() {
 async function processProductImage(file, category, onNotice, unify = true) {
   const original = await fileToDataUrl(file);
   // Admin can switch the unified background off (on by default): the photo is then kept untouched.
-  if (unify === false || !readBgPref()) return original;
-  if (category === "decor" || typeof document === "undefined") return original;
+  if (unify === false || !readBgPref()) return compressImage(original);
+  if (category === "decor" || typeof document === "undefined") return compressImage(original);
   try {
     const { dataUrl, removed } = await unifyProductImage(original);
     if (!removed && onNotice) onNotice();
     return dataUrl;
   } catch {
-    return original;
+    return compressImage(original);
   }
 }
 
